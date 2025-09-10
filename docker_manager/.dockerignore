@@ -1,0 +1,19 @@
+# Rust build artifacts
+core/runtime/thirdparty/refact_agent/engine/target/
+core/runtime/thirdparty/refact_agent/engine/bin/
+core/runtime/thirdparty/refact_agent/engine/bin_backup/
+
+# Git and other unnecessary files
+core/runtime/thirdparty/refact_agent/engine/.git/
+core/runtime/thirdparty/refact_agent/engine/.gitignore
+core/runtime/thirdparty/refact_agent/engine/Cargo.lock
+
+# IDE and editor files
+core/runtime/thirdparty/refact_agent/engine/.vscode/
+core/runtime/thirdparty/refact_agent/engine/.idea/
+core/runtime/thirdparty/refact_agent/engine/*.swp
+core/runtime/thirdparty/refact_agent/engine/*.swo
+
+# OS generated files
+core/runtime/thirdparty/refact_agent/engine/.DS_Store
+core/runtime/thirdparty/refact_agent/engine/Thumbs.db 

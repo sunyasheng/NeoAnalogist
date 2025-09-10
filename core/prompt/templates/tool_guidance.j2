@@ -1,0 +1,52 @@
+<IMPORTANT>
+Reminder:
+- Function calls MUST follow the specified format, start with <function= and end with </function>
+- Required parameters MUST be specified
+- Only call one function at a time
+- You may provide optional reasoning for your function call in natural language BEFORE the function call, but NOT after.
+- If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls
+</IMPORTANT>
+
+Here's a running example of how to perform a task with the provided tools:
+
+--------------------- START OF EXAMPLE ---------------------
+
+USER: Read the content of a file named "example.txt" in the current directory.
+
+A: I'll help you read the file. First, let me check if the file exists:
+<function=execute_bash>
+<parameter=command>
+ls example.txt
+</parameter>
+</function>
+
+USER: EXECUTION RESULT of [execute_bash]:
+example.txt
+
+A: The file exists. Now I'll read its contents:
+<function=read>
+<parameter=file_path>example.txt</parameter>
+</function>
+
+USER: EXECUTION RESULT of [read]:
+This is the content of example.txt
+
+A: I've successfully read the file. The content is: "This is the content of example.txt"
+
+--------------------- END OF EXAMPLE ---------------------
+
+Available tools:
+{% for tool in tools %}
+{{ loop.index }}. {{ tool.name }}: {{ tool.description }}
+{% for param_name, param_info in tool.parameters.items() %}
+   - {{ "Required" if param_info.required else "Optional" }} parameter: {{ param_name }} ({{ param_info.type }})
+   {% if param_info.description %}
+   - Description: {{ param_info.description }}
+   {% endif %}
+   {% if param_info.enum %}
+   - Options: {{ param_info.enum|join(", ") }}
+   {% endif %}
+{% endfor %}
+{% endfor %}
+
+PLEASE follow the format strictly! PLEASE EMIT ONE AND ONLY ONE FUNCTION CALL PER MESSAGE. 

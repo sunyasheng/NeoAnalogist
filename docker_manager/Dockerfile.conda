@@ -1,0 +1,129 @@
+#!/bin/bash
+
+FROM continuumio/miniconda3:latest
+
+ENTRYPOINT []
+
+RUN apt-get update && \
+    apt-get install -y \
+    tmux \
+    git \
+    curl \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    libffi-dev \
+    python3-dev \
+    wget \
+    bzip2 \
+    ca-certificates \
+    vim-gtk3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app_sci
+
+# Set conda environment variables
+ENV CONDA_ENV_NAME=server
+ENV PYTHON_VERSION=3.12.3
+
+# Create conda environment
+RUN conda create -n ${CONDA_ENV_NAME} python=${PYTHON_VERSION} -y
+
+# Initialize conda for shell
+RUN conda init bash
+
+# Set default Python to conda environment
+ENV CONDA_DEFAULT_ENV=${CONDA_ENV_NAME}
+ENV CONDA_PREFIX="/opt/conda/envs/${CONDA_ENV_NAME}"
+
+# Update PATH to prioritize conda environment
+ENV PATH="/opt/conda/envs/${CONDA_ENV_NAME}/bin:${PATH}"
+
+# Set the default shell to use conda environment early
+SHELL ["/bin/bash", "-c"]
+
+# Install packages using conda environment
+RUN conda run -n ${CONDA_ENV_NAME} pip install arxiv
+
+# Install playwright using conda environment
+RUN conda run -n ${CONDA_ENV_NAME} pip install playwright && \
+    conda run -n ${CONDA_ENV_NAME} playwright install
+
+ENV PYTHONPATH=/app_sci/
+
+RUN conda run -n ${CONDA_ENV_NAME} pip install langchain langgraph langchain-openai
+
+RUN conda run -n ${CONDA_ENV_NAME} pip install dvc
+
+# Install static analysis tools for repo-verify
+RUN conda run -n ${CONDA_ENV_NAME} pip install \
+    pyright>=1.1.0 \
+    pylint>=2.17.0 \
+    flake8>=6.0.0 \
+    code2flow>=0.1.0 \
+    pyyaml>=6.0 \
+    packaging>=23.0 \
+    ii-researcher
+
+
+# PDF processing and vector database dependencies
+RUN conda run -n ${CONDA_ENV_NAME} pip install \
+    langchain-community==0.3.8 \
+    langchain-text-splitters==0.3.5 \
+    faiss-cpu==1.11.0 \
+    langchain-openai==0.2.9 \
+    langchain-aws==0.2.1 \
+    huggingface-hub==0.28.1 \
+    langchain==0.3.9 \
+    langchain-anthropic==0.3.0 \
+    boto3==1.37.7 \
+    python-dotenv==1.0.1
+
+RUN conda run -n ${CONDA_ENV_NAME} pip install pypdf==5.2.0
+
+ENV REQUIREMENTS=/app_sci/requirements.txt
+
+COPY requirements.txt ${REQUIREMENTS}
+
+RUN conda run -n ${CONDA_ENV_NAME} pip install -r ${REQUIREMENTS} && \
+    conda clean -afy
+
+# Install mlflow tracking (skinny) into server env to support experiment-manager query
+RUN conda run -n ${CONDA_ENV_NAME} pip install --no-cache-dir mlflow-skinny==2.14.1
+
+# --- Install aider in editable/development mode ---
+RUN git clone https://github.com/Aider-AI/aider.git /aider
+WORKDIR /aider
+RUN conda run -n ${CONDA_ENV_NAME} pip install -e .
+WORKDIR /app_sci
+# To run the local version of aider, use:
+# python -m aider
+RUN conda run -n ${CONDA_ENV_NAME} pip install chromadb
+
+# Install openhands requirements
+COPY requirements_server.txt /app_sci/requirements_server.txt
+RUN conda run -n ${CONDA_ENV_NAME} pip install -r /app_sci/requirements_server.txt
+
+# Install playwright using conda environment
+RUN conda run -n ${CONDA_ENV_NAME} pip install playwright==1.39.0 && \
+    conda run -n ${CONDA_ENV_NAME} playwright install
+
+RUN conda run -n ${CONDA_ENV_NAME} playwright install-deps
+
+
+ENV CLEAN_ENV_NAME=clean_env
+RUN conda create -n ${CLEAN_ENV_NAME} python=${PYTHON_VERSION} -y
+RUN conda run -n ${CLEAN_ENV_NAME} pip install jupyter ipykernel
+RUN conda run -n ${CLEAN_ENV_NAME} python -m ipykernel install --user --name ${CLEAN_ENV_NAME} --display-name "Python (${CLEAN_ENV_NAME})"
+
+# Install mlflow tracking (skinny) into clean_env so wrappers can import mlflow when executed
+RUN conda run -n ${CLEAN_ENV_NAME} pip install --no-cache-dir mlflow-skinny==2.14.1
+
+# Set up automatic conda environment activation
+RUN echo "conda activate ${CLEAN_ENV_NAME}" >> ~/.bashrc && \
+    echo "export PATH=\"/opt/conda/envs/${CLEAN_ENV_NAME}/bin:\$PATH\"" >> ~/.bashrc
+
+CMD ["/bin/bash", "-c", "conda activate ${CLEAN_ENV_NAME} && exec /bin/bash"]
+
+
+EXPOSE 8333

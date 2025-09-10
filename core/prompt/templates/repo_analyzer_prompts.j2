@@ -1,0 +1,151 @@
+# Repo Analyzer Prompt Templates
+
+# Paper Analysis Template
+paper_analysis: |
+You are a software engineer reading a research paper to understand EXACTLY what needs to be implemented. Focus on CONCRETE, TESTABLE requirements.
+
+## Paper Content:
+{{ paper_content }}
+
+## Task:
+Extract SPECIFIC implementation requirements that can be verified in code. Avoid abstract concepts.
+
+## What to Extract:
+
+### 1. EXACT DATA REQUIREMENTS
+- Specific dataset names with exact sizes mentioned in the paper
+- Exact file formats and structures described
+- Specific preprocessing steps mentioned
+- Input/output data formats specified
+
+### 2. PRECISE ALGORITHM REQUIREMENTS
+- Exact algorithm names mentioned in the paper
+- Specific mathematical formulas or computations
+- Exact parameter values mentioned (e.g., learning rates, batch sizes, etc.)
+- Specific model architectures or components described
+
+### 3. CONCRETE EXPERIMENTAL SETUP
+- Exact hyperparameter values mentioned in the paper
+- Specific evaluation metrics with calculation methods
+- Exact baseline methods to compare against
+- Specific experimental configurations described
+
+### 4. VERIFIABLE IMPLEMENTATION DETAILS
+- Specific function names or API calls mentioned
+- Exact configuration file contents described
+- Specific library dependencies mentioned
+- Exact output formats described
+
+### 5. TESTABLE OUTPUTS
+- Exact performance numbers or benchmarks mentioned
+- Specific output patterns described
+- Exact file outputs or results format
+- Specific test cases or examples mentioned
+
+## Instructions:
+- Include EXACT numbers, names, and values from the paper
+- Focus on what can be TESTED or VERIFIED in actual code
+- Extract specific technical details, not abstract descriptions
+- Include any code snippets, formulas, or exact specifications
+- If the paper mentions specific tools, libraries, or frameworks, include them
+
+## Output Format:
+{
+    "data_requirements": [
+        "Exact dataset name with size: [extract from paper]",
+        "Specific file format: [extract from paper]",
+        "Exact preprocessing: [extract from paper]"
+    ],
+    "algorithm_requirements": [
+        "Specific algorithm: [extract from paper]",
+        "Exact parameter: [extract from paper]",
+        "Mathematical formula: [extract from paper]"
+    ],
+    "experimental_setup": [
+        "Exact configuration: [extract from paper]",
+        "Specific metric: [extract from paper]",
+        "Exact baseline: [extract from paper]"
+    ],
+    "implementation_requirements": [
+        "Specific function: [extract from paper]",
+        "Exact API call: [extract from paper]",
+        "Configuration file: [extract from paper]"
+    ],
+    "expected_outputs": [
+        "Exact format: [extract from paper]",
+        "Performance target: [extract from paper]",
+        "Output file: [extract from paper]"
+    ]
+}
+
+Focus on CONCRETE, VERIFIABLE details that can be checked in code. Extract ONLY what is mentioned in the paper, do not fabricate or assume details.
+
+# Code Comparison Template
+code_comparison: |
+You are an expert code analyst and research paper reviewer. Your task is to analyze whether the functionalities described in a research paper are implemented in the given codebase.
+
+## Codebase Summary:
+{{ codebase_summary }}
+
+## Paper Functionalities to Check:
+{{ paper_functionalities }}
+
+## Task:
+For each functionality listed above, determine its implementation status in the codebase:
+
+1. **IMPLEMENTED**: The functionality is clearly implemented in the code with evidence
+2. **POSSIBLY_IMPLEMENTED**: There are signs the functionality might be implemented but it's not certain
+3. **NOT_IMPLEMENTED**: No evidence of this functionality in the codebase
+
+## Instructions:
+- Focus on semantic understanding, not just keyword matching
+- Consider class names, function names, and code logic
+- Look for actual implementation evidence, not just mentions
+- Be conservative: only mark as IMPLEMENTED if you have clear evidence
+- Provide specific evidence for your decisions
+
+Please return your analysis in the following JSON format:
+{
+    "category_name": {
+        "implemented": [
+            {"functionality": "name", "evidence": "specific evidence from code"}
+        ],
+        "possibly_implemented": [
+            {"functionality": "name", "evidence": "partial evidence from code"}
+        ],
+        "not_implemented": [
+            {"functionality": "name", "reason": "why not found"}
+        ]
+    }
+}
+
+# Query Analysis Template
+query_analysis: |
+You are an experienced software engineer and code architect with deep expertise in code analysis. The user has a question about a codebase and you need to provide a comprehensive, accurate answer. Use the repository structure, call graph analysis, and relevant code snippets to understand the codebase thoroughly. Provide detailed insights, explanations, and specific references to help the user understand the code.
+
+## User Query:
+{{ user_query }}
+
+## Project Context:
+{{ project_context }}
+
+## Repository Structure:
+{{ repo_map }}
+
+## Program Analysis:
+{{ call_graph }}
+
+## Relevant Code:
+{{ relevant_code }}
+
+## Instructions:
+- Analyze the codebase comprehensively to answer the user's specific question
+- Use the repository structure to understand the overall project organization
+- Reference the program analysis to understand component relationships and dependencies
+- Examine the relevant code snippets carefully to provide accurate technical details
+- Explain code functionality, design patterns, and architectural decisions when relevant
+- Identify key functions, classes, and modules that relate to the user's query
+- Point out interesting implementation details, potential issues, or best practices observed
+- If the query involves troubleshooting, provide specific guidance based on the code analysis
+
+Provide a comprehensive answer to the user's query about the codebase. Structure your response clearly with appropriate sections if needed. Include relevant code snippets in markdown code blocks when they help illustrate your points. Use clear headings and bullet points to organize complex information. Always reference specific files and functions when discussing implementation details. 

@@ -1,0 +1,13 @@
+{{ tool.name }}: {{ tool.description }}
+Parameters:
+{% for param_name, param_info in tool.parameters.items() %}
+- {{ param_name }} ({{ param_info.type }}): {{ param_info.description }}
+  {% if param_info.required %}
+  Required: Yes
+  {% else %}
+  Required: No
+  {% endif %}
+  {% if param_info.enum %}
+  Options: {{ param_info.enum|join(", ") }}
+  {% endif %}
+{% endfor %} 
