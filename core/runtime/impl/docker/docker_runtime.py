@@ -859,10 +859,16 @@ def main():
                 print(result)
         elif args.got_edit_image_path or args.got_edit_prompt:
             from core.events.action.image import GoTEditAction
-            # Ensure absolute path in container if using local path style
+            # Map container path back to host path for GoT API
             img_path = args.got_edit_image_path or ""
-            if img_path and not img_path.startswith('/'):  # map to container path if needed
-                img_path = os.path.join('/app_sci', img_path)
+            if img_path:
+                if img_path.startswith('/app_sci/'):
+                    # Map container path back to host workspace path
+                    relative_path = img_path[9:]  # Remove '/app_sci/'
+                    img_path = os.path.join(os.getcwd(), relative_path)
+                elif not img_path.startswith('/'):
+                    # Relative path - make it absolute in host workspace
+                    img_path = os.path.join(os.getcwd(), img_path)
             action = GoTEditAction(
                 image_path=img_path,
                 prompt=args.got_edit_prompt or "",
