@@ -11,26 +11,34 @@ class GoTEditClient:
 
     def edit(self, image_path: str, prompt: str, height: int = 1024, width: int = 1024) -> Dict[str, Any]:
         url = f"{self.base_url}/got/generate"
-        payload = {
-            "prompt": prompt,
-            "mode": "edit",
-            "image_path": image_path,
-            "height": height,
-            "width": width,
-        }
-        resp = requests.post(url, json=payload, timeout=600)
+        
+        # Prepare multipart form data
+        with open(image_path, 'rb') as f:
+            files = {'image': f}
+            data = {
+                'prompt': prompt,
+                'mode': 'edit',
+                'height': str(height),
+                'width': str(width),
+                'return_type': 'json'  # Return JSON with file paths
+            }
+            resp = requests.post(url, files=files, data=data, timeout=600)
+        
         resp.raise_for_status()
         return resp.json()
 
     def generate(self, prompt: str, height: int = 1024, width: int = 1024) -> Dict[str, Any]:
         url = f"{self.base_url}/got/generate"
-        payload = {
-            "prompt": prompt,
-            "mode": "t2i",
-            "height": height,
-            "width": width,
+        
+        # Prepare multipart form data for t2i
+        data = {
+            'prompt': prompt,
+            'mode': 't2i',
+            'height': str(height),
+            'width': str(width),
+            'return_type': 'json'  # Return JSON with file paths
         }
-        resp = requests.post(url, json=payload, timeout=600)
+        resp = requests.post(url, data=data, timeout=600)
         resp.raise_for_status()
         return resp.json()
 
