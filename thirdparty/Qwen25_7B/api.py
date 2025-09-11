@@ -40,11 +40,11 @@ def _load_model_once():
     
     print("[Qwen2.5-VL] Loading model...")
     _MODEL = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-        "Qwen/Qwen2.5-VL-7B-Instruct", 
+        "pretrained/Qwen2.5-VL-7B-Instruct", 
         torch_dtype="auto", 
         device_map="auto"
     )
-    _PROCESSOR = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-7B-Instruct")
+    _PROCESSOR = AutoProcessor.from_pretrained("pretrained/Qwen2.5-VL-7B-Instruct")
     print("[Qwen2.5-VL] Model loaded successfully.")
     return _MODEL, _PROCESSOR
 
