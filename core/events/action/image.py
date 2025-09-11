@@ -28,3 +28,23 @@ class ImageEntityExtractAction(Action):
         return f"Extract entities from image: {src} (model={self.model})"
 
 
+
+@dataclass
+class GoTEditAction(Action):
+    """Edit an image using GoT API.
+
+    image_path should be an absolute path inside container or accessible path on host.
+    """
+
+    image_path: Optional[str] = None
+    prompt: str = ""
+    height: int = 1024
+    width: int = 1024
+
+    action: str = "got_edit"
+    runnable: ClassVar[bool] = True
+
+    @property
+    def message(self) -> str:
+        return f"GoT edit: {self.prompt} on {self.image_path} ({self.width}x{self.height})"
+

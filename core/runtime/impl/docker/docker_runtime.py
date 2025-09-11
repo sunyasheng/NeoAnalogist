@@ -26,11 +26,13 @@ from core.events.observation.repo import RepoEditObservation
 from core.runtime.tasks.repo_edit import RepoEditTask
 from core.events.action import PaperRubricAction
 from core.events.observation.repo import PaperRubricObservation
-from core.events.action.image import ImageEntityExtractAction
+from core.events.observation.repo import GoTEditObservation
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction
 
 # Import PDF query functionality
 from core.events.action import PDFQueryAction
 from core.runtime.tasks.pdf_query_task import PDFQueryTask
+from core.runtime.tasks.got_edit import GoTEditClient
 from core.events.observation import PDFQueryObservation
 
 logger = get_logger(__name__)
@@ -174,6 +176,27 @@ class DockerRuntime(ActionExecutionClient):
         self.check_if_alive()
         logger.info("Server is ready")
         return True
+
+    def got_edit(self, action: GoTEditAction) -> GoTEditObservation:
+        """Call local GoT API to edit an image with a prompt.
+
+        Expects the GoT API running on localhost:8100.
+        """
+        try:
+            client = GoTEditClient(base_url="http://localhost:8100")
+            if not action.image_path:
+                return GoTEditObservation(success=False, error_message="image_path is required")
+            result = client.edit(
+                image_path=action.image_path,
+                prompt=action.prompt,
+                height=action.height,
+                width=action.width,
+            )
+            got_text = result.get("got_text", "")
+            image_paths = result.get("images", [])
+            return GoTEditObservation(content="GoT edit executed", got_text=got_text, image_paths=image_paths, success=True)
+        except Exception as e:
+            return GoTEditObservation(success=False, error_message=str(e))
 
     def _log_stream(self):
         """处理容器日志流的函数"""
@@ -693,6 +716,11 @@ def main():
     parser.add_argument("--image-entity-extract-path", type=str, help="Image path inside container or repo (will be mapped)", metavar='IMG_PATH')
     parser.add_argument("--image-entity-extract-model", type=str, default="gpt-4o", help="Vision model (e.g., gpt-4o)", metavar='MODEL')
     parser.add_argument("--image-entity-extract-timeout", type=int, default=180, help="Timeout seconds", metavar='SEC')
+    # GoT image edit (one-line CLI)
+    parser.add_argument("--got-edit-image-path", type=str, help="Image path for GoT edit (absolute or container path)", metavar='IMG_PATH')
+    parser.add_argument("--got-edit-prompt", type=str, help="Edit prompt for GoT", metavar='PROMPT')
+    parser.add_argument("--got-edit-height", type=int, default=1024, help="Output height", metavar='H')
+    parser.add_argument("--got-edit-width", type=int, default=1024, help="Output width", metavar='W')
     # Experiment Manager (wrap experiments into MLflow scripts or query experiment history)
     parser.add_argument("--exp-manager-cmd", type=str, help="Bash command to wrap into MLflow experiment (e.g., python xxx.py)", metavar='CMD')
     parser.add_argument("--exp-manager-exp-name", type=str, help="Experiment name for the wrapper script", metavar='EXP_NAME')
@@ -829,6 +857,25 @@ def main():
                 print(output)
             except Exception:
                 print(result)
+        elif args.got_edit_image_path or args.got_edit_prompt:
+            from core.events.action.image import GoTEditAction
+            # Ensure absolute path in container if using local path style
+            img_path = args.got_edit_image_path or ""
+            if img_path and not img_path.startswith('/'):  # map to container path if needed
+                img_path = os.path.join('/app_sci', img_path)
+            action = GoTEditAction(
+                image_path=img_path,
+                prompt=args.got_edit_prompt or "",
+                height=args.got_edit_height,
+                width=args.got_edit_width,
+            )
+            result = runtime.got_edit(action)
+            print({
+                'success': getattr(result, 'success', False),
+                'error': getattr(result, 'error_message', ''),
+                'got_text': getattr(result, 'got_text', ''),
+                'image_paths': getattr(result, 'image_paths', []),
+            })
         elif args.task_graph:
             from core.events.action.tasks import TaskGraphBuildAction
 

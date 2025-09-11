@@ -720,3 +720,23 @@ class PaperRubricObservation(Observation):
             ret += f"\n❌ ERROR: {self.error_message}\n"
         
         return ret
+
+
+@dataclass
+class GoTEditObservation(Observation):
+    """Observation for GoT image edit/generation."""
+
+    content: str = ""
+    got_text: str = ""
+    image_paths: List[str] = None
+    success: bool = False
+    error_message: str = ""
+    observation: str = "GOT_EDIT"
+
+    def __post_init__(self):
+        if self.image_paths is None:
+            self.image_paths = []
+
+    @property
+    def message(self) -> str:
+        return "GoT edit completed" if self.success else f"GoT edit failed: {self.error_message}"
