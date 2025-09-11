@@ -17,6 +17,18 @@ app = FastAPI(
     version="1.0.0",
 )
 
+@app.on_event("startup")
+async def _warmup_model():
+    """Preload GoT model at startup to avoid first-request latency."""
+    try:
+        # Lazy import to avoid circular
+        from got_service import _load_got_once
+        _load_got_once()
+        print("[GoT] Model preloaded at startup.")
+    except Exception as e:
+        # Do not crash server; just log
+        print(f"[GoT] Preload failed: {e}")
+
 
 class GoTRequest(BaseModel):
     prompt: str
