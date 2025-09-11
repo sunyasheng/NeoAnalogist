@@ -43,7 +43,7 @@ def _load_got_once():
     # Processor (trust remote code for Qwen2.5-VL) and add special image tokens
     qwen_path = os.path.join(pretrained_dir, "Qwen2.5-VL-3B-Instruct")
     processor = AutoProcessor.from_pretrained(qwen_path, trust_remote_code=True)
-    add_token_list = ['<|im_gen_start|>', '<|im_gen_end|>']
+    add_token_list = ['<|im_gen_start|>', '<|im_gen_end|>', '<|vision_start|>', '<|vision_end|>']
     for i in range(64):
         add_token_list.append(f"<|im_gen_{i:04d}|>")
     processor.tokenizer.add_tokens(add_token_list, special_tokens=True)
@@ -69,6 +69,9 @@ def _load_got_once():
     scheduler = DDPMScheduler.from_pretrained(sdxl_root, subfolder="scheduler")
 
     # Build GenCot and load sharded weights (no single-file ckpt present)
+    # Align image token id window with actual tokenizer ids
+    dynamic_img_gen_start_id = processor.tokenizer.convert_tokens_to_ids('<|im_gen_0000|>')
+
     model = GenCot(
         mllm=mllm,
         output_projector=output_projector,
@@ -78,7 +81,7 @@ def _load_got_once():
         unet=unet,
         processor=processor,
         num_img_out_tokens=64,
-        img_gen_start_id=151667,
+        img_gen_start_id=dynamic_img_gen_start_id,
         box_start_id=151648,
         box_end_id=151649,
     )
