@@ -29,6 +29,7 @@ from core.runtime.utils.request import send_request
 from core.utils.http_session import HttpSession
 from core.utils.types.exceptions import (AgentRuntimeError,
                                          AgentRuntimeTimeoutError)
+from core.events.action.image import ImageEntityExtractAction
 
 
 class ActionExecutionClient:
@@ -96,6 +97,12 @@ class ActionExecutionClient:
             AgentRuntimeError: If the request fails
         """
         return send_request(self.session, method, url, **kwargs)
+
+    # ---- Generic helper: image entity extraction via standard flow ----
+    def image_entity_extract(self, action: "ImageEntityExtractAction") -> Observation:
+        if action.timeout is None:
+            action.set_hard_timeout(180, blocking=False)
+        return self.send_action_for_execution(action)
 
     def send_action_for_execution(self, action: Action) -> Observation:
         if (

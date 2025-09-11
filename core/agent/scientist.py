@@ -181,39 +181,8 @@ class Scientist(Agent):
                         msg, task, self.config["devai_path"]
                     )
                 else:
-                    self.prompt_manager.add_examples_to_initial_message(
-                        msg,
-                        task,
-                        paper_path.replace(
-                            os.path.join(os.getcwd(), "workspace"),
-                            "/app_sci/workspace",
-                        ),
-                    )
-                    
-                    # Add environment setup information to the initial message
-                    # Infer workspace_base from paper_path
-                    # Extract workspace base from paper_path (e.g., /path/to/workspace/20250621_112417/debug/... -> /path/to/workspace/20250621_112417)
-                    workspace_base = "/app_sci"  # default fallback
-                    if paper_path:
-                        # Find the workspace directory pattern (contains timestamp-like folder)
-                        import re
-                        # Look for pattern like workspace/YYYYMMDD_HHMMSS
-                        match = re.search(r'(.*?/workspace/\d{8}_\d{6})', paper_path)
-                        if match:
-                            # Convert local path to container path
-                            local_workspace_base = match.group(1)
-                            workspace_base = local_workspace_base.replace(
-                                os.path.join(os.getcwd(), "workspace"),
-                                "/app_sci/workspace"
-                            )
-                    
-                    self.prompt_manager.add_env_setup_to_initial_message(
-                        msg,
-                        env_setup_name="env_setup_prompt.j2",
-                        type_of_processor=self.config.get("compute", {}).get("type", "CPU"),
-                        max_time_in_hours=self.config.get("compute", {}).get("max_hours", 8),
-                        workspace_base=workspace_base
-                    )
+                    # For ImageBrush mode, do not inject paper reproduction examples or env setup block
+                    pass
                     # import pdb; pdb.set_trace()
 
             elif msg.role == "user":
@@ -245,14 +214,8 @@ class Scientist(Agent):
             )
             # import pdb; pdb.set_trace()
         else:
-            system_prompt_name = "scientist_system_prompt_w_produce.j2"
-            suffix_prompt = """
-
-⚠️ CRITICAL INSTRUCTION: You MUST generate only ONE tool call at a time.
-- NEVER generate multiple tool calls in a single response
-- Wait for the result of each tool call before proceeding to the next one
-- This ensures stable execution and prevents context corruption
-- Take one step at a time, even if you have a complex plan"""
+            system_prompt_name = "image_manipulation_system_prompt.j2"
+            suffix_prompt = ""
         # initial system prompt
         messages = self.conversation_memory.process_initial_messages(
             with_caching=False,

@@ -20,6 +20,7 @@ from .repo_judge import RepoJudgeTool
 from .pdf_query import PDFQueryTool
 from .paper_rubric import PaperRubricTool
 from .experiment_manager import ExperimentManagerTool
+from .image_entity_extract import ImageEntityExtractTool
 
 __all__ = [
     "BrowserTool",
@@ -43,5 +44,6 @@ __all__ = [
     "RepoJudgeTool",
     "PDFQueryTool",
     "PaperRubricTool",
-    "ExperimentManagerTool"
+    "ExperimentManagerTool",
+    "ImageEntityExtractTool",
 ]

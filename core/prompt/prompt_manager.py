@@ -20,8 +20,11 @@ class PromptManager:
             loader=FileSystemLoader(self.template_dir), autoescape=True
         )
 
-        # self.user_prompt_template = self._load_template("user_prompt.j2")
-        self.user_prompt_template = self._load_template("user_prompt_w_produce.j2")
+        # default to image_user_prompt; fallback to generic if missing
+        try:
+            self.user_prompt_template = self._load_template("image_user_prompt.j2")
+        except FileNotFoundError:
+            self.user_prompt_template = self._load_template("user_prompt.j2")
 
         self.tool_guidance_template = self._load_template("tool_guidance.j2")
 

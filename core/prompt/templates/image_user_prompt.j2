@@ -1,0 +1,12 @@
+TASK: {{ task or "Analyze the image and extract the entities." }}
+
+Context:
+- Example image path: `workspace/imgs/test.png` (container: `/app_sci/workspace/imgs/test.png`).
+
+Guidelines:
+- When applicable, call the image tool to produce a caption and entities with bbox [x,y,h,w] and short desc.
+- Use one tool call at a time; be concise and structured.
+
+Now begin.
+
+

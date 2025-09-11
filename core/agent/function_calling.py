@@ -22,6 +22,7 @@ from core.agent.tools.repo_judge import RepoJudgeTool
 from core.agent.tools.pdf_query import PDFQueryTool
 from core.agent.tools.ipython import IPythonTool
 from core.agent.tools.paper_rubric import PaperRubricTool
+from core.agent.tools.image_entity_extract import ImageEntityExtractTool
 from core.agent.tools.experiment_manager import ExperimentManagerTool
 from core.events.action import (Action, AgentFinishAction, AgentThinkAction,
                                 BrowseInteractiveAction, BrowseURLAction,
@@ -82,6 +83,7 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     f"Failed to parse tool call arguments: {tool_call.function.arguments}"
                 ) from e
 
+
             # ================================================
             # CmdRunTool (Bash)
             # ================================================
@@ -94,6 +96,21 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                 is_input = arguments.get("is_input", "false") == "true"
                 action = CmdRunAction(command=arguments["command"], is_input=is_input)
 
+            # ================================================
+            # ImageEntityExtractTool
+            # ================================================
+            elif tool_call.function.name == ImageEntityExtractTool["function"]["name"]:
+                if "image_path" not in arguments:
+                    raise FunctionCallValidationError(
+                        f'Missing required argument "image_path" in tool call {tool_call.function.name}'
+                    )
+                action = RepoRunAction  # placeholder to get type hints quiet
+                from core.events.action.image import ImageEntityExtractAction
+                action = ImageEntityExtractAction(
+                    image_path=arguments["image_path"],
+                    model=arguments.get("model", "gpt-4o"),
+                )
+                action.set_hard_timeout(arguments.get("timeout", 180), blocking=False)
             # ================================================
             # IPythonTool (Jupyter)
             # ================================================
@@ -450,13 +467,13 @@ def get_tools(
         create_cmd_run_tool(use_simplified_description=use_simplified_tool_desc),
         ThinkTool,
         FinishTool,
-        PDFQueryTool,
+        ImageEntityExtractTool,
+        # PDFQueryTool,
         IPythonTool,
-        PaperRubricTool,
-        ####### code related tools #######
-        RepoCreateTool,
-        RepoEditTool,
-        RepoJudgeTool,
+        # PaperRubricTool,
+        # RepoCreateTool,
+        # RepoEditTool,
+        # RepoJudgeTool,
     ]
     # import pdb; pdb.set_trace()
 

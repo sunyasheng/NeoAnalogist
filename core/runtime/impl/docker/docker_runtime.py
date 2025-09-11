@@ -26,6 +26,7 @@ from core.events.observation.repo import RepoEditObservation
 from core.runtime.tasks.repo_edit import RepoEditTask
 from core.events.action import PaperRubricAction
 from core.events.observation.repo import PaperRubricObservation
+from core.events.action.image import ImageEntityExtractAction
 
 # Import PDF query functionality
 from core.events.action import PDFQueryAction
@@ -542,6 +543,26 @@ class DockerRuntime(ActionExecutionClient):
             logger.error(f"Failed to execute command: {str(e)}")
             raise
 
+    def run_image_entity_extract(
+        self,
+        image_path: str | None = None,
+        model: str = "gpt-4o",
+        timeout: int = 180,
+    ):
+        """Convenience method: ensure server, then run ImageEntityExtractAction.
+
+        Returns the Observation produced by the server.
+        """
+        from core.events.action.image import ImageEntityExtractAction
+
+        action = ImageEntityExtractAction(
+            image_path=image_path,
+            model=model,
+        )
+        if action.timeout is None:
+            action.set_hard_timeout(timeout, blocking=False)
+        return self.image_entity_extract(action)
+
     async def _repo_run_async(self, action: RepoRunAction) -> RepoRunObservation:
         """Run a repository's reproduce.sh script in an isolated environment (async impl)"""
         task = self._get_repo_run_task()
@@ -606,6 +627,9 @@ def create_test_repo(repo_dir: str) -> None:
 # python -m core.runtime.impl.docker.docker_runtime --exp-manager-mode query --exp-manager-repo-dir "workspace/20250820_071036/debug/data/lbcs/submission"
 # python -m core.runtime.impl.docker.docker_runtime --command "cd /app_sci/workspace/20250820_071036/debug/data/lbcs/submission && /opt/conda/envs/clean_env/bin/pip install -r requirements.txt && /opt/conda/envs/clean_env/bin/python /app_sci/workspace/20250820_071036/debug/data/lbcs/mlflow_scripts/lbcs_fashionmnist_experiment_mlflow_wrapper.py --config config.yaml"
 # python -m core.runtime.impl.docker.docker_runtime --exp-manager-cmd "python main.py --config config.yaml" --exp-manager-mode wrap --exp-manager-exp-name "lbcs_fashionmnist_experiment" --exp-manager-repo-dir "workspace/20250820_071036/debug/data/lbcs/submission"
+# python -m core.runtime.impl.docker.docker_runtime --image-entity-extract-path /app_sci/workspace/imgs/test.jpg
+# python -m core.runtime.impl.docker.docker_runtime --image-entity-extract-path /app_sci/workspace/imgs/test.png --image-entity-extract-model gpt-4o
+
 
 def main():
     """Test function for DockerRuntime class"""
@@ -665,6 +689,10 @@ def main():
     parser.add_argument("--pdf-query-embedding-model", type=str, default="openai", help="Embedding model to use (openai, huggingface, bedrock)", metavar='MODEL')
     parser.add_argument("--pdf-query-top-k", type=int, default=5, help="Number of top results to retrieve", metavar='TOP_K')
     parser.add_argument("--ipython-code", type=str, help="Python code to execute in IPython kernel")
+    # Image entity extraction (one-line CLI)
+    parser.add_argument("--image-entity-extract-path", type=str, help="Image path inside container or repo (will be mapped)", metavar='IMG_PATH')
+    parser.add_argument("--image-entity-extract-model", type=str, default="gpt-4o", help="Vision model (e.g., gpt-4o)", metavar='MODEL')
+    parser.add_argument("--image-entity-extract-timeout", type=int, default=180, help="Timeout seconds", metavar='SEC')
     # Experiment Manager (wrap experiments into MLflow scripts or query experiment history)
     parser.add_argument("--exp-manager-cmd", type=str, help="Bash command to wrap into MLflow experiment (e.g., python xxx.py)", metavar='CMD')
     parser.add_argument("--exp-manager-exp-name", type=str, help="Experiment name for the wrapper script", metavar='EXP_NAME')
@@ -778,6 +806,29 @@ def main():
             )
             result = runtime.browse_interactive(action)
             print(f"Interactive Browser Result:\n{result}")
+        elif args.image_entity_extract_path:
+            # Ensure absolute path in container if using path
+            img_path = args.image_entity_extract_path
+            if img_path:
+                if not img_path.startswith('/app_sci'):
+                    img_path = os.path.join('/app_sci', img_path)
+            result = runtime.run_image_entity_extract(
+                image_path=img_path,
+                model=args.image_entity_extract_model,
+                timeout=args.image_entity_extract_timeout,
+            )
+            # Print caption + entities (and fallback raw)
+            try:
+                output = {
+                    'content': getattr(result, 'content', None),
+                    'entities': getattr(result, 'entities', None),
+                    'image_size': getattr(result, 'image_size', None),
+                    'model': getattr(result, 'model', None),
+                    'time_ms': getattr(result, 'time_ms', None),
+                }
+                print(output)
+            except Exception:
+                print(result)
         elif args.task_graph:
             from core.events.action.tasks import TaskGraphBuildAction
 

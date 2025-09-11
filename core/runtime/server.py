@@ -80,6 +80,9 @@ from core.runtime.tasks.repo_edit import RepoEditTask
 from core.runtime.tasks.pdf_query_task import PDFQueryTool
 from core.events.observation.repo import RepoEditObservation
 from core.runtime.plugins.jupyter import JupyterPlugin
+from core.events.action.image import ImageEntityExtractAction
+from core.events.observation.image import ImageEntityExtractObservation
+from core.runtime.tasks.image_entity_extract import ImageEntityExtractTask
 
 
 logger = get_logger(__name__)
@@ -1047,6 +1050,19 @@ class ActionExecutor:
                 success=False,
                 error_message=f"Failed to edit repository: {str(e)}"
             )
+
+    async def image_entity_extract(self, action: ImageEntityExtractAction) -> ImageEntityExtractObservation | ErrorObservation:
+        """Run image entity extraction task.
+
+        Loads image from path or base64, runs detection, returns entities and metadata.
+        """
+        try:
+            task = ImageEntityExtractTask(self)
+            obs: ImageEntityExtractObservation = task.run(action)
+            return obs
+        except Exception as e:
+            logger.error(f"Error in image_entity_extract: {str(e)}")
+            return ErrorObservation(f"Failed to extract entities: {str(e)}")
 
     async def repo_judge(self, action: RepoJudgeAction) -> RepoJudgeObservation:
         """Judge repository code based on rubric questions or rubric file."""
