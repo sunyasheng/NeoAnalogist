@@ -25,111 +25,67 @@ def _load_sharded_state_dict(pretrained_dir: str) -> dict:
     return combined
 
 
+def _load_sharded_state_dict_from_folder(folder_path: str) -> dict:
+    """Load sharded state dict from a folder containing index json + bin shards."""
+    import json
+    index_path = os.path.join(folder_path, "pytorch_model.bin.index.json")
+    with open(index_path, "r") as f:
+        index = json.load(f)
+    shard_map = index.get("weight_map", {})
+    shard_files = sorted({v for v in shard_map.values()})
+    combined = {}
+    for shard in shard_files:
+        shard_path = os.path.join(folder_path, shard)
+        sd = torch.load(shard_path, map_location="cpu")
+        combined.update(sd)
+    return combined
+
+
 def _load_got_once():
     global _GOT_MODEL, _GOT_PROCESSOR
     if _GOT_MODEL is not None:
         return _GOT_MODEL, _GOT_PROCESSOR
 
-    # Minimal hydra-free builder using provided Hydra-like config values
-    from got.models.got_model import GenCot
-    from got.models.projector import LinearProjector
-    from diffusers import AutoencoderKL, UNet2DConditionModel, DDPMScheduler
-    from transformers import AutoProcessor
-    from transformers import Qwen2_5_VLForConditionalGeneration
-    from peft import LoraConfig, get_peft_model
+    # Hydra-based builder (mirror notebook)
+    import hydra
+    from omegaconf import OmegaConf
 
     root_dir = os.path.dirname(__file__)
-    pretrained_dir = os.path.join(root_dir, "pretrained")
+    cfg_mllm = OmegaConf.load(os.path.join(root_dir, 'configs/clm_models/llm_qwen25_vl_3b_lora.yaml'))
+    cfg_got = OmegaConf.load(os.path.join(root_dir, 'configs/clm_models/agent_got.yaml'))
+    weight_dtype = torch.bfloat16
 
-    # Processor (trust remote code for Qwen2.5-VL) and add special image tokens
-    qwen_path = os.path.join(pretrained_dir, "Qwen2.5-VL-3B-Instruct")
-    processor = AutoProcessor.from_pretrained(qwen_path, trust_remote_code=True)
-    add_token_list = ['<|im_gen_start|>', '<|im_gen_end|>', '<|vision_start|>', '<|vision_end|>']
-    for i in range(64):
-        add_token_list.append(f"<|im_gen_{i:04d}|>")
-    processor.tokenizer.add_tokens(add_token_list, special_tokens=True)
-
-    # MLLM backbone (trust remote code for VL architecture)
-    mllm = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-        qwen_path,
-        torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-        device_map="auto" if torch.cuda.is_available() else None,
-        trust_remote_code=True,
-    )
-    # LoRA per configs/clm_models/llm_qwen25_vl_3b_lora.yaml
-    lora_cfg = LoraConfig(
-        r=32,
-        lora_alpha=32,
-        lora_dropout=0.05,
-        target_modules=[
-            'q_proj','v_proj','k_proj','o_proj','gate_proj','down_proj','up_proj',
-            'embed_tokens','lm_head','input_layernorm','post_attention_layernorm'
-        ],
-        task_type='CAUSAL_LM',
-    )
-    mllm = get_peft_model(mllm, lora_cfg)
-    # Ensure embeddings cover added tokens
-    mllm.resize_token_embeddings(len(processor.tokenizer))
-    # Eval and caching
-    if hasattr(mllm, 'config'):
+    mllm_model = hydra.utils.instantiate(cfg_mllm, torch_dtype='bf16')
+    if hasattr(mllm_model, 'config'):
         try:
-            mllm.config.use_cache = True
+            mllm_model.config.use_cache = True
         except Exception:
             pass
-    mllm.eval()
+    mllm_model = mllm_model.eval()
 
-    # Output projectors per config
-    output_projector = LinearProjector(in_hidden_size=2048, out_hidden_size=2048)
-    output_projector_add = LinearProjector(in_hidden_size=2048, out_hidden_size=1280)
+    got_model = hydra.utils.instantiate(cfg_got, mllm=mllm_model)
+    got_model = got_model.to(weight_dtype)
+    if torch.cuda.is_available():
+        got_model = got_model.cuda()
+    got_model = got_model.eval()
 
-    # Diffusion parts per config
-    sdxl_root = os.path.join(pretrained_dir, "stable-diffusion-xl-base-1.0")
-    vae = AutoencoderKL.from_pretrained(sdxl_root, subfolder="vae")
-    unet = UNet2DConditionModel.from_pretrained(sdxl_root, subfolder="unet")
-    scheduler = DDPMScheduler.from_pretrained(sdxl_root, subfolder="scheduler")
-
-    # Build GenCot and load sharded weights (no single-file ckpt present)
-    # Align image token id window with actual tokenizer ids
-    dynamic_img_gen_start_id = processor.tokenizer.convert_tokens_to_ids('<|im_gen_0000|>')
-
-    model = GenCot(
-        mllm=mllm,
-        output_projector=output_projector,
-        output_projector_add=output_projector_add,
-        scheduler=scheduler,
-        vae=vae,
-        unet=unet,
-        processor=processor,
-        num_img_out_tokens=64,
-        img_gen_start_id=dynamic_img_gen_start_id,
-        box_start_id=151648,
-        box_end_id=151649,
-    )
+    # Load sharded GoT weights from pretrained/GoT-6B
+    pretrained_dir = os.path.join(root_dir, 'pretrained')
     try:
-        state_dict = _load_sharded_state_dict(pretrained_dir)
-        missing, unexpected = model.load_state_dict(state_dict, strict=False)
-        print(f"[GoT] load_state_dict: missing={len(missing)}, unexpected={len(unexpected)}")
+        ckpt = _load_sharded_state_dict_from_folder(os.path.join(pretrained_dir, 'GoT-6B'))
+        logs = got_model.load_state_dict(ckpt, strict=False)
+        print(logs)
     except FileNotFoundError:
-        # Fall back: try single-file ckpt if user later places it
-        single_path = os.path.join(pretrained_dir, "GoT-6B", "pytorch_model.bin")
+        single_path = os.path.join(pretrained_dir, 'GoT-6B', 'pytorch_model.bin')
         if os.path.exists(single_path):
-            sd = torch.load(single_path, map_location="cpu")
-            model.load_state_dict(sd, strict=False)
+            sd = torch.load(single_path, map_location='cpu')
+            logs = got_model.load_state_dict(sd, strict=False)
+            print(logs)
         else:
             raise
-    # dtype/device/eval per notebook
-    if torch.cuda.is_available():
-        model = model.to(torch.bfloat16).cuda()
-    model.eval()
-    # minimal diagnostics
-    try:
-        boi_id = processor.tokenizer.convert_tokens_to_ids('<|im_gen_start|>')
-        img0_id = processor.tokenizer.convert_tokens_to_ids('<|im_gen_0000|>')
-        print(f"[GoT] token ids: im_gen_start={boi_id}, im_gen_0000={img0_id}")
-    except Exception:
-        pass
-    _GOT_MODEL = model
-    _GOT_PROCESSOR = processor
+
+    _GOT_MODEL = got_model
+    _GOT_PROCESSOR = getattr(got_model, 'processor', None)
     return _GOT_MODEL, _GOT_PROCESSOR
 
 
