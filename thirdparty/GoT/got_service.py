@@ -17,22 +17,30 @@ def _load_got_once():
     # Minimal hydra-free builder using provided Hydra-like config values
     from got.models.got_model import GenCot
     from got.models.projector import LinearProjector
-    from got.processer.qwen25_vl_processor import get_processor
     from diffusers import AutoencoderKL, UNet2DConditionModel, DDPMScheduler
-    from transformers import AutoModelForCausalLM, AutoConfig
+    from transformers import AutoProcessor
+    from transformers import Qwen2_5_VLForConditionalGeneration
 
     root_dir = os.path.dirname(__file__)
     pretrained_dir = os.path.join(root_dir, "pretrained")
 
-    # Processor
-    processor = get_processor(os.path.join(pretrained_dir, "Qwen2.5-VL-3B-Instruct"), add_gen_token_num=64)
+    # Processor (trust remote code for Qwen2.5-VL) and add special image tokens
+    qwen_path = os.path.join(pretrained_dir, "Qwen2.5-VL-3B-Instruct")
+    processor = AutoProcessor.from_pretrained(qwen_path, trust_remote_code=True)
+    add_token_list = ['<|im_gen_start|>', '<|im_gen_end|>']
+    for i in range(64):
+        add_token_list.append(f"<|im_gen_{i:04d}|>")
+    processor.tokenizer.add_tokens(add_token_list, special_tokens=True)
 
-    # MLLM backbone (Qwen2.5-VL-3B-Instruct). If vision variant requires a specific class, users must adjust here.
-    mllm = AutoModelForCausalLM.from_pretrained(
-        os.path.join(pretrained_dir, "Qwen2.5-VL-3B-Instruct"),
+    # MLLM backbone (trust remote code for VL architecture)
+    mllm = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+        qwen_path,
         torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-        device_map="auto" if torch.cuda.is_available() else None
+        device_map="auto" if torch.cuda.is_available() else None,
+        trust_remote_code=True,
     )
+    # Ensure embeddings cover added tokens
+    mllm.resize_token_embeddings(len(processor.tokenizer))
 
     # Output projectors per config
     output_projector = LinearProjector(in_hidden_size=2048, out_hidden_size=2048)
