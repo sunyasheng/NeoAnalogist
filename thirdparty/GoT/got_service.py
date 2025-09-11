@@ -14,45 +14,15 @@ def _load_got_once():
     if _GOT_MODEL is not None:
         return _GOT_MODEL, _GOT_PROCESSOR
 
-    from got.models.utils import build_all_models
-    from got.models.utils import build_processor
-    from got.models.got_model import GenCot
-    from diffusers import AutoencoderKL, UNet2DConditionModel, EulerDiscreteScheduler
-
-    # Expect pretrained weights under ./pretrained as README suggests
-    root_dir = os.path.dirname(__file__)
-    pretrained_dir = os.path.join(root_dir, "pretrained")
-
-    # Build processor and core models (user should ensure weights present)
-    processor = build_processor(
-        tokenizer_cfg=os.path.join(root_dir, "configs/tokenizer/qwen25_vl_tokenizer_token64.yaml")
+    # The upstream repo in this workspace does not provide builder helpers.
+    # Expose a clear error with setup guidance instead of failing on import.
+    from got.models.got_model import GenCot  # noqa: F401 (verify module exists)
+    raise RuntimeError(
+        "GoT setup incomplete: missing model builders. Please ensure: "
+        "1) Pretrained weights under thirdparty/GoT/pretrained as README specifies; "
+        "2) Implement model/processor builders or install the official GoT package providing them; "
+        "3) Then update got_service._load_got_once() to construct (mllm, output_projector, output_projector_add, vae, unet, scheduler, processor)."
     )
-    mllm, output_projector, output_projector_add = build_all_models(
-        clm_cfg=os.path.join(root_dir, "configs/clm_models/agent_got.yaml"),
-        processor=processor,
-        pretrained_root=pretrained_dir,
-    )
-
-    # Diffusion parts (assumed in pretrained directory per README)
-    vae = AutoencoderKL.from_pretrained(os.path.join(pretrained_dir, "stable-diffusion-xl-base-1.0"), subfolder="vae")
-    unet = UNet2DConditionModel.from_pretrained(os.path.join(pretrained_dir, "stable-diffusion-xl-base-1.0"), subfolder="unet")
-    scheduler = EulerDiscreteScheduler.from_pretrained(os.path.join(pretrained_dir, "stable-diffusion-xl-base-1.0"), subfolder="scheduler")
-
-    model = GenCot.from_pretrained(
-        mllm=mllm,
-        output_projector=output_projector,
-        output_projector_add=output_projector_add,
-        scheduler=scheduler,
-        vae=vae,
-        unet=unet,
-        processor=processor,
-        pretrained_model_path=os.path.join(pretrained_dir, "GoT-6B", "pytorch_model.bin"),
-    )
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model.to(device)
-    _GOT_MODEL = model
-    _GOT_PROCESSOR = processor
-    return _GOT_MODEL, _GOT_PROCESSOR
 
 
 def got_generate(
