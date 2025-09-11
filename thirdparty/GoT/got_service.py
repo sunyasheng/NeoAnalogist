@@ -9,6 +9,22 @@ _GOT_MODEL = None
 _GOT_PROCESSOR = None
 
 
+def _load_sharded_state_dict(pretrained_dir: str) -> dict:
+    """Load sharded state dict using HF-style index json."""
+    import json
+    index_path = os.path.join(pretrained_dir, "GoT-6B", "pytorch_model.bin.index.json")
+    with open(index_path, "r") as f:
+        index = json.load(f)
+    shard_map = index.get("weight_map", {})
+    shard_files = sorted({v for v in shard_map.values()})
+    combined = {}
+    for shard in shard_files:
+        shard_path = os.path.join(pretrained_dir, "GoT-6B", shard)
+        sd = torch.load(shard_path, map_location="cpu")
+        combined.update(sd)
+    return combined
+
+
 def _load_got_once():
     global _GOT_MODEL, _GOT_PROCESSOR
     if _GOT_MODEL is not None:
@@ -52,7 +68,8 @@ def _load_got_once():
     unet = UNet2DConditionModel.from_pretrained(sdxl_root, subfolder="unet")
     scheduler = DDPMScheduler.from_pretrained(sdxl_root, subfolder="scheduler")
 
-    model = GenCot.from_pretrained(
+    # Build GenCot and load sharded weights (no single-file ckpt present)
+    model = GenCot(
         mllm=mllm,
         output_projector=output_projector,
         output_projector_add=output_projector_add,
@@ -60,8 +77,24 @@ def _load_got_once():
         vae=vae,
         unet=unet,
         processor=processor,
-        pretrained_model_path=os.path.join(pretrained_dir, "GoT-6B", "pytorch_model.bin"),
+        num_img_out_tokens=64,
+        img_gen_start_id=151667,
+        box_start_id=151648,
+        box_end_id=151649,
     )
+    try:
+        state_dict = _load_sharded_state_dict(pretrained_dir)
+        missing, unexpected = model.load_state_dict(state_dict, strict=False)
+        if len(missing) or len(unexpected):
+            print(f"[GoT] load_state_dict: missing={len(missing)}, unexpected={len(unexpected)}")
+    except FileNotFoundError:
+        # Fall back: try single-file ckpt if user later places it
+        single_path = os.path.join(pretrained_dir, "GoT-6B", "pytorch_model.bin")
+        if os.path.exists(single_path):
+            sd = torch.load(single_path, map_location="cpu")
+            model.load_state_dict(sd, strict=False)
+        else:
+            raise
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
     _GOT_MODEL = model
