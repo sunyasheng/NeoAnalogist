@@ -36,6 +36,7 @@ def _load_got_once():
     from diffusers import AutoencoderKL, UNet2DConditionModel, DDPMScheduler
     from transformers import AutoProcessor
     from transformers import Qwen2_5_VLForConditionalGeneration
+    from peft import LoraConfig, get_peft_model
 
     root_dir = os.path.dirname(__file__)
     pretrained_dir = os.path.join(root_dir, "pretrained")
@@ -55,8 +56,27 @@ def _load_got_once():
         device_map="auto" if torch.cuda.is_available() else None,
         trust_remote_code=True,
     )
+    # LoRA per configs/clm_models/llm_qwen25_vl_3b_lora.yaml
+    lora_cfg = LoraConfig(
+        r=32,
+        lora_alpha=32,
+        lora_dropout=0.05,
+        target_modules=[
+            'q_proj','v_proj','k_proj','o_proj','gate_proj','down_proj','up_proj',
+            'embed_tokens','lm_head','input_layernorm','post_attention_layernorm'
+        ],
+        task_type='CAUSAL_LM',
+    )
+    mllm = get_peft_model(mllm, lora_cfg)
     # Ensure embeddings cover added tokens
     mllm.resize_token_embeddings(len(processor.tokenizer))
+    # Eval and caching
+    if hasattr(mllm, 'config'):
+        try:
+            mllm.config.use_cache = True
+        except Exception:
+            pass
+    mllm.eval()
 
     # Output projectors per config
     output_projector = LinearProjector(in_hidden_size=2048, out_hidden_size=2048)
@@ -88,8 +108,7 @@ def _load_got_once():
     try:
         state_dict = _load_sharded_state_dict(pretrained_dir)
         missing, unexpected = model.load_state_dict(state_dict, strict=False)
-        if len(missing) or len(unexpected):
-            print(f"[GoT] load_state_dict: missing={len(missing)}, unexpected={len(unexpected)}")
+        print(f"[GoT] load_state_dict: missing={len(missing)}, unexpected={len(unexpected)}")
     except FileNotFoundError:
         # Fall back: try single-file ckpt if user later places it
         single_path = os.path.join(pretrained_dir, "GoT-6B", "pytorch_model.bin")
@@ -98,8 +117,17 @@ def _load_got_once():
             model.load_state_dict(sd, strict=False)
         else:
             raise
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model.to(device)
+    # dtype/device/eval per notebook
+    if torch.cuda.is_available():
+        model = model.to(torch.bfloat16).cuda()
+    model.eval()
+    # minimal diagnostics
+    try:
+        boi_id = processor.tokenizer.convert_tokens_to_ids('<|im_gen_start|>')
+        img0_id = processor.tokenizer.convert_tokens_to_ids('<|im_gen_0000|>')
+        print(f"[GoT] token ids: im_gen_start={boi_id}, im_gen_0000={img0_id}")
+    except Exception:
+        pass
     _GOT_MODEL = model
     _GOT_PROCESSOR = processor
     return _GOT_MODEL, _GOT_PROCESSOR
