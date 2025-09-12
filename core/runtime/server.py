@@ -1134,8 +1134,8 @@ class ActionExecutor:
             if action.mode == "chat" and not action.messages:
                 return QwenAPIObservation(success=False, error_message="messages is required for chat mode")
             
-            # Use the Qwen API endpoint
-            client = QwenAPIClient(base_url="http://localhost:8200")
+            # Use the Qwen API endpoint (same IP as GoT edit but different port)
+            client = QwenAPIClient(base_url="http://10.64.74.69:8200")
             
             if action.mode == "generate":
                 # Generate mode - single request with optional image
