@@ -38,13 +38,24 @@ class GoTEditAction(Action):
 
     image_path: Optional[str] = None
     prompt: str = ""
+    mode: str = "t2i"  # "t2i" for text-to-image, "edit" for image editing
     height: int = 1024
     width: int = 1024
+    max_new_tokens: int = 1024
+    num_inference_steps: int = 50
+    guidance_scale: float = 7.5
+    image_guidance_scale: float = 1.0
+    cond_image_guidance_scale: float = 4.0
+    thought: str = ""
 
     action: str = "got_edit"
     runnable: ClassVar[bool] = True
 
     @property
     def message(self) -> str:
-        return f"GoT edit: {self.prompt} on {self.image_path} ({self.width}x{self.height})"
+        mode_desc = "text-to-image" if self.mode == "t2i" else "image editing"
+        if self.mode == "edit" and self.image_path:
+            return f"GoT {mode_desc}: {self.prompt} on {self.image_path} ({self.width}x{self.height})"
+        else:
+            return f"GoT {mode_desc}: {self.prompt} ({self.width}x{self.height})"
 
