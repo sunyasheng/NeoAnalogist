@@ -178,26 +178,8 @@ class DockerRuntime(ActionExecutionClient):
         return True
 
     def got_edit(self, action: GoTEditAction) -> GoTEditObservation:
-        """Call local GoT API to edit an image with a prompt.
-
-        Expects the GoT API running on localhost:8100.
-        """
-        try:
-            client = GoTEditClient(base_url="http://10.64.74.69:8100")
-            if not action.image_path:
-                return GoTEditObservation(success=False, error_message="image_path is required")
-            result = client.edit(
-                image_path=action.image_path,
-                prompt=action.prompt,
-                height=action.height,
-                width=action.width,
-                output_path=action.output_path,
-            )
-            got_text = result.get("got_text", "")
-            image_paths = result.get("images", [])
-            return GoTEditObservation(content="GoT edit executed", got_text=got_text, image_paths=image_paths, success=True)
-        except Exception as e:
-            return GoTEditObservation(success=False, error_message=str(e))
+        """Call GoT API to edit an image with a prompt via the action execution server."""
+        return self.send_action_for_execution(action)
 
     def _log_stream(self):
         """处理容器日志流的函数"""

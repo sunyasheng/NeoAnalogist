@@ -80,9 +80,10 @@ from core.runtime.tasks.repo_edit import RepoEditTask
 from core.runtime.tasks.pdf_query_task import PDFQueryTool
 from core.events.observation.repo import RepoEditObservation
 from core.runtime.plugins.jupyter import JupyterPlugin
-from core.events.action.image import ImageEntityExtractAction
-from core.events.observation.image import ImageEntityExtractObservation
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction
+from core.events.observation.image import ImageEntityExtractObservation, GoTEditObservation
 from core.runtime.tasks.image_entity_extract import ImageEntityExtractTask
+from core.runtime.tasks.got_edit import GoTEditClient
 
 
 logger = get_logger(__name__)
@@ -1063,6 +1064,47 @@ class ActionExecutor:
         except Exception as e:
             logger.error(f"Error in image_entity_extract: {str(e)}")
             return ErrorObservation(f"Failed to extract entities: {str(e)}")
+
+    async def got_edit(self, action: GoTEditAction) -> GoTEditObservation:
+        """Call GoT API to edit an image with a prompt.
+        
+        This method runs inside the Docker container and can access container file paths directly.
+        """
+        try:
+            if not action.image_path:
+                return GoTEditObservation(success=False, error_message="image_path is required")
+            
+            # Use the original GoT service endpoint
+            client = GoTEditClient(base_url="http://10.64.74.69:8100")
+            
+            # Convert container path to host path
+            if action.image_path.startswith("/app_sci/"):
+                # Get project root from environment or use relative path
+                project_root = os.environ.get("PROJECT_ROOT", "/Users/suny0a/Proj/ImageBrush")
+                host_image_path = action.image_path.replace("/app_sci/", f"{project_root}/")
+                host_output_path = None
+                if action.output_path and action.output_path.startswith("/app_sci/"):
+                    host_output_path = action.output_path.replace("/app_sci/", f"{project_root}/")
+                elif action.output_path:
+                    host_output_path = action.output_path
+            else:
+                host_image_path = action.image_path
+                host_output_path = action.output_path
+            
+            result = client.edit(
+                image_path=host_image_path,
+                prompt=action.prompt,
+                height=action.height,
+                width=action.width,
+                output_path=host_output_path,
+            )
+            got_text = result.get("got_text", "")
+            image_paths = result.get("images", [])
+            return GoTEditObservation(content="GoT edit executed", got_text=got_text, image_paths=image_paths, success=True)
+            
+        except Exception as e:
+            logger.error(f"Error in got_edit: {str(e)}")
+            return GoTEditObservation(success=False, error_message=str(e))
 
     async def repo_judge(self, action: RepoJudgeAction) -> RepoJudgeObservation:
         """Judge repository code based on rubric questions or rubric file."""
