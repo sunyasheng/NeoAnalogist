@@ -81,7 +81,8 @@ from core.runtime.tasks.pdf_query_task import PDFQueryTool
 from core.events.observation.repo import RepoEditObservation
 from core.runtime.plugins.jupyter import JupyterPlugin
 from core.events.action.image import ImageEntityExtractAction, GoTEditAction
-from core.events.observation.image import ImageEntityExtractObservation, GoTEditObservation
+from core.events.observation.image import ImageEntityExtractObservation
+from core.events.observation.repo import GoTEditObservation
 from core.runtime.tasks.image_entity_extract import ImageEntityExtractTask
 from core.runtime.tasks.got_edit import GoTEditClient
 
