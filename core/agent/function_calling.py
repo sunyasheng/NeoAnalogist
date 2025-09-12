@@ -133,6 +133,7 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     guidance_scale=arguments.get("guidance_scale", 7.5),
                     image_guidance_scale=arguments.get("image_guidance_scale", 1.0),
                     cond_image_guidance_scale=arguments.get("cond_image_guidance_scale", 4.0),
+                    output_path=arguments.get("output_path", ""),
                     thought=thought,
                 )
                 action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
