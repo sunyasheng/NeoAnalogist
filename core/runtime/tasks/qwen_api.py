@@ -29,7 +29,7 @@ class QwenAPIClient:
             files['image'] = open(image_path, 'rb')
         
         try:
-            resp = requests.post(url, data=data, files=files, timeout=300)
+            resp = requests.post(url, data=data, files=files, timeout=600)  # Increased timeout to 10 minutes
             resp.raise_for_status()
             return resp.json()
         finally:
@@ -49,6 +49,6 @@ class QwenAPIClient:
             'top_p': str(top_p),
         }
         
-        resp = requests.post(url, data=data, timeout=300)
+        resp = requests.post(url, data=data, timeout=600)  # Increased timeout to 10 minutes
         resp.raise_for_status()
         return resp.json()

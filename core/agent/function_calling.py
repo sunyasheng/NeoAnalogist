@@ -153,7 +153,7 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     messages=arguments.get("messages", None),
                     thought=thought,
                 )
-                action.set_hard_timeout(arguments.get("timeout", 300), blocking=False)
+                action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)  # Increased timeout to 10 minutes for Qwen API
             # ================================================
             # IPythonTool (Jupyter)
             # ================================================
