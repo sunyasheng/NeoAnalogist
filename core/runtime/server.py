@@ -1074,6 +1074,8 @@ class ActionExecutor:
         try:
             if not action.image_path:
                 return GoTEditObservation(success=False, error_message="image_path is required")
+            if not action.output_path:
+                return GoTEditObservation(success=False, error_message="output_path is required")
             
             # Use the original GoT service endpoint
             client = GoTEditClient(base_url="http://10.64.74.69:8100")

@@ -46,7 +46,7 @@ class GoTEditAction(Action):
     guidance_scale: float = 7.5
     image_guidance_scale: float = 1.0
     cond_image_guidance_scale: float = 4.0
-    output_path: Optional[str] = None
+    output_path: str = ""
     thought: str = ""
 
     action: str = "got_edit"

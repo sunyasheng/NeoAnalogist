@@ -78,10 +78,10 @@ GoTEditTool: ChatCompletionToolParam = {
                 },
                 "output_path": {
                     "type": "string",
-                    "description": "Optional output path for the generated image. If not provided, a default path will be used.",
+                    "description": "Required output path for the generated image.",
                 },
             },
-            "required": ["prompt", "mode"],
+            "required": ["prompt", "mode", "output_path"],
         },
     },
 }
