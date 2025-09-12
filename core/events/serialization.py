@@ -49,9 +49,10 @@ from core.events.observation import (AgentThinkObservation,
                                      Observation, TaskGraphBuildObservation, SnapshotObservation, RollbackObservation,
                                      RepoPlanObservation, RepoCreateObservation, RepoAnalyzerObservation, RepoUpdateObservation, RepoVerifyObservation, RepoRunObservation, PaperReproductionAnalyzerObservation, RepoDebugObservation, RepoEditObservation, PDFQueryObservation, IPythonRunCellObservation, RepoJudgeObservation, PaperRubricObservation)
 from core.events.observation.image import ImageEntityExtractObservation
+from core.events.observation.repo import GoTEditObservation
 from core.events.observation.experiment import ExperimentManagerObservation
 from core.utils.types.exceptions import LLMMalformedActionError
-from core.events.action.image import ImageEntityExtractAction
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction
 
 actions = (
     FileEditAction,
@@ -83,6 +84,7 @@ actions = (
     CondensationAction,
     ExperimentManagerAction,
     ImageEntityExtractAction,
+    GoTEditAction,
 )
 
 observations = (
@@ -110,6 +112,7 @@ observations = (
     RepoJudgeObservation,
     PaperRubricObservation,
     ImageEntityExtractObservation,
+    GoTEditObservation,
     ExperimentManagerObservation,
 )
 

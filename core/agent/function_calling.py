@@ -24,6 +24,7 @@ from core.agent.tools.ipython import IPythonTool
 from core.agent.tools.paper_rubric import PaperRubricTool
 from core.agent.tools.image_entity_extract import ImageEntityExtractTool
 from core.agent.tools.experiment_manager import ExperimentManagerTool
+from core.agent.tools.got_edit import GoTEditTool
 from core.events.action import (Action, AgentFinishAction, AgentThinkAction,
                                 BrowseInteractiveAction, BrowseURLAction,
                                 CmdRunAction, FileEditAction, FileReadAction,
@@ -111,6 +112,30 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     model=arguments.get("model", "gpt-4o"),
                 )
                 action.set_hard_timeout(arguments.get("timeout", 180), blocking=False)
+            # ================================================
+            # GoTEditTool
+            # ================================================
+            elif tool_call.function.name == GoTEditTool["function"]["name"]:
+                from core.events.action.image import GoTEditAction
+                mode = arguments.get("mode", "t2i")
+                if mode not in ["t2i", "edit"]:
+                    raise FunctionCallValidationError(
+                        f'Invalid mode {mode} in tool call {tool_call.function.name}'
+                    )
+                action = GoTEditAction(
+                    image_path=arguments.get("image_path", None),
+                    prompt=arguments.get("prompt", ""),
+                    mode=mode,
+                    height=arguments.get("height", 1024),
+                    width=arguments.get("width", 1024),
+                    max_new_tokens=arguments.get("max_new_tokens", 1024),
+                    num_inference_steps=arguments.get("num_inference_steps", 50),
+                    guidance_scale=arguments.get("guidance_scale", 7.5),
+                    image_guidance_scale=arguments.get("image_guidance_scale", 1.0),
+                    cond_image_guidance_scale=arguments.get("cond_image_guidance_scale", 4.0),
+                    thought=thought,
+                )
+                action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
             # ================================================
             # IPythonTool (Jupyter)
             # ================================================
@@ -467,7 +492,8 @@ def get_tools(
         create_cmd_run_tool(use_simplified_description=use_simplified_tool_desc),
         ThinkTool,
         FinishTool,
-        ImageEntityExtractTool,
+        # ImageEntityExtractTool,
+        GoTEditTool,
         # PDFQueryTool,
         IPythonTool,
         # PaperRubricTool,
@@ -477,9 +503,9 @@ def get_tools(
     ]
     # import pdb; pdb.set_trace()
 
-    if codeact_enable_browsing:
-        tools.append(WebReadTool)
-        tools.append(BrowserTool)
+    # if codeact_enable_browsing:
+    #     tools.append(WebReadTool)
+    #     tools.append(BrowserTool)
     if codeact_enable_jupyter:
         # tools.append(IPythonTool)
         pass
