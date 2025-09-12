@@ -13,7 +13,7 @@ from core.events.observation import (AgentThinkObservation,
                                      Observation, TaskGraphBuildObservation,
                                      RepoPlanObservation, RepoCreateObservation, RepoAnalyzerObservation, RepoUpdateObservation, RepoVerifyObservation, RepoRunObservation, AgentCondensationObservation, PaperReproductionAnalyzerObservation, RepoDebugObservation, RepoEditObservation, PDFQueryObservation, IPythonRunCellObservation, RepoJudgeObservation)
 from core.events.observation.error import ErrorObservation
-from core.events.observation.repo import PaperRubricObservation
+from core.events.observation.repo import PaperRubricObservation, GoTEditObservation
 from core.events.observation.image import ImageEntityExtractObservation
 from core.prompt.prompt_manager import PromptManager
 from core.utils.types.message import ImageContent, Message, TextContent
@@ -439,6 +439,10 @@ class ConversationMemory:
             message = Message(role="user", content=[TextContent(text=text)])
         # Image entity extract observation (aligned style)
         elif isinstance(obs, ImageEntityExtractObservation):
+            text = truncate_content(str(obs), max_message_chars)
+            message = Message(role="user", content=[TextContent(text=text)])
+        # GoT edit observation
+        elif isinstance(obs, GoTEditObservation):
             text = truncate_content(str(obs), max_message_chars)
             message = Message(role="user", content=[TextContent(text=text)])
         else:
