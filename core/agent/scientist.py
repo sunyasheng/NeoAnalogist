@@ -365,6 +365,7 @@ class Scientist(Agent):
                         # self.event_history.append(continue_prompt)
                         # break
                 if isinstance(action, MessageAction):
+                    import pdb; pdb.set_trace()
                     if action.wait_for_response:
                         continue_prompt = MessageAction(
                             content=self.prompt_manager.get_continue_prompt(),
