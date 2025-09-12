@@ -4,7 +4,7 @@ from core.events.action import (Action, AgentFinishAction, AgentThinkAction,
                                 BrowseInteractiveAction, BrowseURLAction,
                                 CmdRunAction, FileEditAction, FileReadAction,
                                 MessageAction, TaskGraphBuildAction, RepoPlanAction, RepoCreateAction, RepoAnalyzerAction, RepoUpdateAction, RepoVerifyAction, RepoRunAction, PaperReproductionAnalyzerAction, RepoDebugAction, RepoEditAction, PDFQueryAction, IPythonRunCellAction, RepoJudgeAction, PaperRubricAction)
-from core.events.action.image import ImageEntityExtractAction
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction
 from core.events.event import ActionType, Event, truncate_content
 from core.events.observation import (AgentThinkObservation,
                                      BrowserOutputObservation,
@@ -196,6 +196,7 @@ class ConversationMemory:
                 RepoJudgeAction,
                 PaperRubricAction,
                 ImageEntityExtractAction,
+                GoTEditAction,
             ),
         ) or (isinstance(action, CmdRunAction)):
             # or (isinstance(action, CmdRunAction) and action.source == 'agent'):
