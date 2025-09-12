@@ -729,7 +729,7 @@ def main():
     # Create a simple config object
     class SimpleConfig:
         def __init__(self):
-            self.sandbox = type("Sandbox", (), {"timeout": 30})()
+            self.sandbox = type("Sandbox", (), {"timeout": 600})()  # Increased default timeout to 10 minutes
             # Use current working directory
             self.workspace_base = os.getcwd()
             self.workspace_mount_path = None
