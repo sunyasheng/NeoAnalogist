@@ -25,10 +25,12 @@ from core.agent.tools.paper_rubric import PaperRubricTool
 from core.agent.tools.image_entity_extract import ImageEntityExtractTool
 from core.agent.tools.experiment_manager import ExperimentManagerTool
 from core.agent.tools.got_edit import GoTEditTool
+from core.agent.tools.qwen_api import QwenAPITool
 from core.events.action import (Action, AgentFinishAction, AgentThinkAction,
                                 BrowseInteractiveAction, BrowseURLAction,
                                 CmdRunAction, FileEditAction, FileReadAction,
                                 MessageAction, TaskGraphBuildAction, RepoPlanAction, RepoCreateAction, RepoAnalyzerAction, RepoUpdateAction, RepoVerifyAction, RepoRunAction, PaperReproductionAnalyzerAction, RepoDebugAction, RepoEditAction, PDFQueryAction, IPythonRunCellAction, RepoJudgeAction, PaperRubricAction, ExperimentManagerAction)
+from core.events.action.image import QwenAPIAction
 from core.events.event import FileEditSource, FileReadSource, ToolCallMetadata
 
 
@@ -137,6 +139,21 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     thought=thought,
                 )
                 action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
+            # ================================================
+            # QwenAPITool
+            # ================================================
+            elif tool_call.function.name == QwenAPITool["function"]["name"]:
+                action = QwenAPIAction(
+                    prompt=arguments.get("prompt", ""),
+                    image_path=arguments.get("image_path", ""),
+                    mode=arguments.get("mode", "generate"),
+                    max_new_tokens=arguments.get("max_new_tokens", 128),
+                    temperature=arguments.get("temperature", 0.7),
+                    top_p=arguments.get("top_p", 0.9),
+                    messages=arguments.get("messages", None),
+                    thought=thought,
+                )
+                action.set_hard_timeout(arguments.get("timeout", 300), blocking=False)
             # ================================================
             # IPythonTool (Jupyter)
             # ================================================
@@ -495,6 +512,7 @@ def get_tools(
         FinishTool,
         # ImageEntityExtractTool,
         GoTEditTool,
+        QwenAPITool,
         # PDFQueryTool,
         IPythonTool,
         # PaperRubricTool,

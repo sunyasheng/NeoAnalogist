@@ -60,3 +60,29 @@ class GoTEditAction(Action):
         else:
             return f"GoT {mode_desc}: {self.prompt} ({self.width}x{self.height})"
 
+
+@dataclass
+class QwenAPIAction(Action):
+    """Analyze images using Qwen2.5-VL API."""
+
+    prompt: str = ""
+    image_path: str = ""
+    mode: str = "generate"  # "generate" for single request, "chat" for structured chat
+    max_new_tokens: int = 128
+    temperature: float = 0.7
+    top_p: float = 0.9
+    messages: Optional[str] = None  # JSON string for chat mode
+    thought: str = ""
+
+    action: str = "qwen_api"
+    runnable: ClassVar[bool] = True
+
+    @property
+    def message(self) -> str:
+        if self.mode == "chat":
+            return f"Qwen chat API: {len(self.messages or '')} characters"
+        elif self.image_path:
+            return f"Qwen API: {self.prompt} with image {self.image_path}"
+        else:
+            return f"Qwen API: {self.prompt}"
+

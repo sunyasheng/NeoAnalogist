@@ -737,6 +737,17 @@ class GoTEditObservation(Observation):
         if self.image_paths is None:
             self.image_paths = []
 
+
+@dataclass
+class QwenAPIObservation(Observation):
+    """Observation from Qwen2.5-VL API operation."""
+
+    content: str = ""
+    response: str = ""
+    success: bool = False
+    error_message: str = ""
+    observation: str = "QWEN_API"
+
     @property
     def message(self) -> str:
         return "GoT edit completed" if self.success else f"GoT edit failed: {self.error_message}"

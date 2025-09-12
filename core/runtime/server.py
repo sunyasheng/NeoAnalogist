@@ -80,11 +80,12 @@ from core.runtime.tasks.repo_edit import RepoEditTask
 from core.runtime.tasks.pdf_query_task import PDFQueryTool
 from core.events.observation.repo import RepoEditObservation
 from core.runtime.plugins.jupyter import JupyterPlugin
-from core.events.action.image import ImageEntityExtractAction, GoTEditAction
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction
 from core.events.observation.image import ImageEntityExtractObservation
-from core.events.observation.repo import GoTEditObservation
+from core.events.observation.repo import GoTEditObservation, QwenAPIObservation
 from core.runtime.tasks.image_entity_extract import ImageEntityExtractTask
 from core.runtime.tasks.got_edit import GoTEditClient
+from core.runtime.tasks.qwen_api import QwenAPIClient
 
 
 logger = get_logger(__name__)
@@ -1119,6 +1120,65 @@ class ActionExecutor:
         except Exception as e:
             logger.error(f"Error in got_edit: {str(e)}")
             return GoTEditObservation(success=False, error_message=str(e))
+
+    async def qwen_api(self, action: QwenAPIAction) -> QwenAPIObservation:
+        """Call Qwen2.5-VL API for image analysis or text generation.
+        
+        This method runs inside the Docker container and can access container file paths directly.
+        """
+        try:
+            if not action.image_path:
+                return QwenAPIObservation(success=False, error_message="image_path is required")
+            if not action.prompt and action.mode != "chat":
+                return QwenAPIObservation(success=False, error_message="prompt is required for generate mode")
+            if action.mode == "chat" and not action.messages:
+                return QwenAPIObservation(success=False, error_message="messages is required for chat mode")
+            
+            # Use the Qwen API endpoint
+            client = QwenAPIClient(base_url="http://localhost:8200")
+            
+            if action.mode == "generate":
+                # Generate mode - single request with optional image
+                result = client.generate(
+                    prompt=action.prompt,
+                    image_path=action.image_path,
+                    max_new_tokens=action.max_new_tokens,
+                    temperature=action.temperature,
+                    top_p=action.top_p,
+                )
+            else:  # chat mode
+                # Parse messages JSON string
+                import json
+                try:
+                    messages = json.loads(action.messages)
+                except json.JSONDecodeError as e:
+                    return QwenAPIObservation(success=False, error_message=f"Invalid messages JSON: {str(e)}")
+                
+                result = client.chat(
+                    messages=messages,
+                    max_new_tokens=action.max_new_tokens,
+                    temperature=action.temperature,
+                    top_p=action.top_p,
+                )
+            
+            if result.get("success", False):
+                response_text = result.get("response", "")
+                return QwenAPIObservation(
+                    content=f"Qwen API request completed successfully",
+                    response=response_text,
+                    success=True
+                )
+            else:
+                error_msg = result.get("error", "Unknown error")
+                return QwenAPIObservation(
+                    content=f"Qwen API request failed",
+                    success=False,
+                    error_message=error_msg
+                )
+            
+        except Exception as e:
+            logger.error(f"Error in qwen_api: {str(e)}")
+            return QwenAPIObservation(success=False, error_message=str(e))
 
     async def repo_judge(self, action: RepoJudgeAction) -> RepoJudgeObservation:
         """Judge repository code based on rubric questions or rubric file."""

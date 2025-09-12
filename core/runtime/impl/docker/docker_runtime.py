@@ -26,8 +26,8 @@ from core.events.observation.repo import RepoEditObservation
 from core.runtime.tasks.repo_edit import RepoEditTask
 from core.events.action import PaperRubricAction
 from core.events.observation.repo import PaperRubricObservation
-from core.events.observation.repo import GoTEditObservation
-from core.events.action.image import ImageEntityExtractAction, GoTEditAction
+from core.events.observation.repo import GoTEditObservation, QwenAPIObservation
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction
 
 # Import PDF query functionality
 from core.events.action import PDFQueryAction
@@ -179,6 +179,10 @@ class DockerRuntime(ActionExecutionClient):
 
     def got_edit(self, action: GoTEditAction) -> GoTEditObservation:
         """Call GoT API to edit an image with a prompt via the action execution server."""
+        return self.send_action_for_execution(action)
+
+    def qwen_api(self, action: QwenAPIAction) -> QwenAPIObservation:
+        """Call Qwen2.5-VL API for image analysis or text generation via the action execution server."""
         return self.send_action_for_execution(action)
 
     def _log_stream(self):
@@ -635,6 +639,8 @@ def create_test_repo(repo_dir: str) -> None:
 # python -m core.runtime.impl.docker.docker_runtime --exp-manager-cmd "python main.py --config config.yaml" --exp-manager-mode wrap --exp-manager-exp-name "lbcs_fashionmnist_experiment" --exp-manager-repo-dir "workspace/20250820_071036/debug/data/lbcs/submission"
 # python -m core.runtime.impl.docker.docker_runtime --image-entity-extract-path /app_sci/workspace/imgs/test.jpg
 # python -m core.runtime.impl.docker.docker_runtime --image-entity-extract-path /app_sci/workspace/imgs/test.png --image-entity-extract-model gpt-4o
+# python -m core.runtime.impl.docker.docker_runtime --qwen-api-image-path /app_sci/workspace/imgs/test.png --qwen-api-prompt "Describe what you see in this image"
+# python -m core.runtime.impl.docker.docker_runtime --qwen-api-image-path /app_sci/workspace/imgs/test.png --qwen-api-prompt "What objects are in this image?" --qwen-api-max-tokens 200 --qwen-api-temperature 0.8
 
 
 def main():
@@ -704,6 +710,13 @@ def main():
     parser.add_argument("--got-edit-prompt", type=str, help="Edit prompt for GoT", metavar='PROMPT')
     parser.add_argument("--got-edit-height", type=int, default=1024, help="Output height", metavar='H')
     parser.add_argument("--got-edit-width", type=int, default=1024, help="Output width", metavar='W')
+    # Qwen API image analysis (one-line CLI)
+    parser.add_argument("--qwen-api-image-path", type=str, help="Image path for Qwen API analysis (absolute or container path)", metavar='IMG_PATH')
+    parser.add_argument("--qwen-api-prompt", type=str, help="Analysis prompt for Qwen API", metavar='PROMPT')
+    parser.add_argument("--qwen-api-mode", type=str, choices=["generate", "chat"], default="generate", help="Qwen API mode: generate or chat", metavar='MODE')
+    parser.add_argument("--qwen-api-max-tokens", type=int, default=128, help="Maximum tokens for Qwen API", metavar='TOKENS')
+    parser.add_argument("--qwen-api-temperature", type=float, default=0.7, help="Temperature for Qwen API", metavar='TEMP')
+    parser.add_argument("--qwen-api-top-p", type=float, default=0.9, help="Top-p for Qwen API", metavar='TOP_P')
     # Experiment Manager (wrap experiments into MLflow scripts or query experiment history)
     parser.add_argument("--exp-manager-cmd", type=str, help="Bash command to wrap into MLflow experiment (e.g., python xxx.py)", metavar='CMD')
     parser.add_argument("--exp-manager-exp-name", type=str, help="Experiment name for the wrapper script", metavar='EXP_NAME')
@@ -864,6 +877,39 @@ def main():
                 'error': getattr(result, 'error_message', ''),
                 'got_text': getattr(result, 'got_text', ''),
                 'image_paths': getattr(result, 'image_paths', []),
+            })
+        elif args.qwen_api_image_path or args.qwen_api_prompt:
+            from core.events.action.image import QwenAPIAction
+            
+            print(f"\n🔍 Qwen API Image Analysis")
+            print(f"Image Path: {args.qwen_api_image_path}")
+            print(f"Prompt: {args.qwen_api_prompt}")
+            print(f"Mode: {args.qwen_api_mode}")
+            
+            # Map container path for Qwen API
+            img_path = args.qwen_api_image_path or ""
+            if img_path:
+                if img_path.startswith('/app_sci/'):
+                    # Use container path directly for Qwen API
+                    pass  # Keep as is since Qwen API runs in container
+                elif not img_path.startswith('/'):
+                    # Relative path - make it absolute in container
+                    img_path = os.path.join('/app_sci', img_path)
+            
+            action = QwenAPIAction(
+                image_path=img_path,
+                prompt=args.qwen_api_prompt or "",
+                mode=args.qwen_api_mode,
+                max_new_tokens=args.qwen_api_max_tokens,
+                temperature=args.qwen_api_temperature,
+                top_p=args.qwen_api_top_p
+            )
+            result = runtime.qwen_api(action)
+            print({
+                'success': getattr(result, 'success', False),
+                'error': getattr(result, 'error_message', ''),
+                'response': getattr(result, 'response', ''),
+                'content': getattr(result, 'content', ''),
             })
         elif args.task_graph:
             from core.events.action.tasks import TaskGraphBuildAction
@@ -1521,6 +1567,8 @@ def main():
             print("    Optional flags: --paper-rubric-static, --paper-rubric-dynamic")
             print("  --pdf-query-path <path> --pdf-query-question <question> Query PDF document with semantic search")
             print("    Optional flags: --pdf-query-embedding-model <model>, --pdf-query-top-k <number>")
+            print("  --qwen-api-image-path <path> --qwen-api-prompt <prompt> Analyze image using Qwen2.5-VL API")
+            print("    Optional flags: --qwen-api-mode <generate|chat>, --qwen-api-max-tokens <tokens>, --qwen-api-temperature <temp>, --qwen-api-top-p <top_p>")
             print("  --exp-manager-cmd <bash_cmd> Wrap bash command into MLflow experiment script (e.g., python xxx.py)")
             print("  --exp-manager-mode <wrap|query> Experiment manager mode: wrap (create MLflow script) or query (list experiments) (default: query)")
             print("    Optional: --exp-manager-exp-name <exp_name> (experiment name for the wrapper)")
