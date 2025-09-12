@@ -353,17 +353,17 @@ class Scientist(Agent):
             for action in actions:
                 if isinstance(action, AgentFinishAction):
                     if action.task_completed == "true" or action.task_completed == "partial":
-                    #     self.done = True
-                    #     return {"status": "success", "steps": step + 1}
+                        self.done = True
+                        return {"status": "success", "steps": step + 1}
                     # elif action.task_completed == "partial":
-                        continue_prompt = MessageAction(
-                            content=self.prompt_manager.get_continue_prompt(),
-                            wait_for_response=False,
-                        )
-                        continue_prompt._source = EventSource.USER
-                        self.event_stream.add_event(continue_prompt, EventSource.USER)
-                        self.event_history.append(continue_prompt)
-                        break
+                        # continue_prompt = MessageAction(
+                        #     content=self.prompt_manager.get_continue_prompt(),
+                        #     wait_for_response=False,
+                        # )
+                        # continue_prompt._source = EventSource.USER
+                        # self.event_stream.add_event(continue_prompt, EventSource.USER)
+                        # self.event_history.append(continue_prompt)
+                        # break
                 if isinstance(action, MessageAction):
                     if action.wait_for_response:
                         continue_prompt = MessageAction(
