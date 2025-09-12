@@ -1088,6 +1088,26 @@ class ActionExecutor:
             )
             got_text = result.get("got_text", "")
             image_paths = result.get("images", [])
+            
+            # If GoT service returned a different path and we specified an output_path, copy the file
+            if action.output_path and image_paths:
+                try:
+                    # Get the first generated image path
+                    source_path = image_paths[0]
+                    if os.path.exists(source_path):
+                        # Ensure output directory exists
+                        output_dir = os.path.dirname(action.output_path)
+                        os.makedirs(output_dir, exist_ok=True)
+                        
+                        # Copy the generated image to the specified output path
+                        shutil.copy2(source_path, action.output_path)
+                        
+                        # Update image_paths to include our specified path
+                        image_paths = [action.output_path]
+                        logger.info(f"Copied GoT output from {source_path} to {action.output_path}")
+                except Exception as copy_error:
+                    logger.warning(f"Failed to copy GoT output to specified path: {copy_error}")
+            
             return GoTEditObservation(content="GoT edit executed", got_text=got_text, image_paths=image_paths, success=True)
             
         except Exception as e:
