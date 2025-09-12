@@ -76,6 +76,10 @@ GoTEditTool: ChatCompletionToolParam = {
                     "description": "Timeout seconds (default 600)",
                     "default": 600,
                 },
+                "output_path": {
+                    "type": "string",
+                    "description": "Optional output path for the generated image. If not provided, a default path will be used.",
+                },
             },
             "required": ["prompt", "mode"],
         },

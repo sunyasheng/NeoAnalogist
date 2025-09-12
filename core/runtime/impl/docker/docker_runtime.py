@@ -191,6 +191,7 @@ class DockerRuntime(ActionExecutionClient):
                 prompt=action.prompt,
                 height=action.height,
                 width=action.width,
+                output_path=action.output_path,
             )
             got_text = result.get("got_text", "")
             image_paths = result.get("images", [])

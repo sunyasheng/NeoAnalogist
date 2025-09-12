@@ -9,7 +9,7 @@ class GoTEditClient:
     def __init__(self, base_url: str = "http://localhost:8100"):
         self.base_url = base_url.rstrip("/")
 
-    def edit(self, image_path: str, prompt: str, height: int = 1024, width: int = 1024) -> Dict[str, Any]:
+    def edit(self, image_path: str, prompt: str, height: int = 1024, width: int = 1024, output_path: Optional[str] = None) -> Dict[str, Any]:
         url = f"{self.base_url}/got/generate"
         
         # Prepare multipart form data
@@ -22,12 +22,14 @@ class GoTEditClient:
                 'width': str(width),
                 'return_type': 'json'  # Return JSON with file paths
             }
+            if output_path:
+                data['output_path'] = output_path
             resp = requests.post(url, files=files, data=data, timeout=600)
         
         resp.raise_for_status()
         return resp.json()
 
-    def generate(self, prompt: str, height: int = 1024, width: int = 1024) -> Dict[str, Any]:
+    def generate(self, prompt: str, height: int = 1024, width: int = 1024, output_path: Optional[str] = None) -> Dict[str, Any]:
         url = f"{self.base_url}/got/generate"
         
         # Prepare multipart form data for t2i
@@ -38,6 +40,8 @@ class GoTEditClient:
             'width': str(width),
             'return_type': 'json'  # Return JSON with file paths
         }
+        if output_path:
+            data['output_path'] = output_path
         resp = requests.post(url, data=data, timeout=600)
         resp.raise_for_status()
         return resp.json()
