@@ -167,7 +167,49 @@ class ImageEditJudgeTask:
         
         return suggestions
     
-    async def run(self, original_path: str, edited_path: str, input_caption: str, output_caption: str) -> ImageJudgeResult:
+    async def _analyze_with_qwen(self, original_path: str, edited_path: str, input_caption: str, output_caption: str) -> Optional[str]:
+        """Analyze image editing quality using Qwen API."""
+        try:
+            # Import Qwen API task
+            from core.runtime.tasks.qwen_api import QwenAPITask
+            
+            # Create analysis prompt
+            analysis_prompt = f"""
+Please analyze the quality of this image editing task:
+
+Original image description: "{input_caption}"
+Expected edited image description: "{output_caption}"
+
+Compare the original and edited images. Please evaluate:
+1. Does the edited image successfully implement the requested changes?
+2. Are there any artifacts or quality issues in the edited image?
+3. How well does the edited image match the expected description?
+4. Any specific suggestions for improvement?
+
+Please provide a concise analysis (2-3 sentences) focusing on the most important aspects.
+"""
+
+            # Use edited image for analysis (the result we want to evaluate)
+            qwen_task = QwenAPITask()
+            result = await qwen_task.run(
+                image_path=edited_path,
+                prompt=analysis_prompt,
+                mode="generate",
+                max_tokens=150,
+                temperature=0.3
+            )
+            
+            if result and result.get('content'):
+                return result['content'].strip()
+            else:
+                logger.warning("Qwen API analysis failed or returned empty result")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error in Qwen API analysis: {str(e)}")
+            return None
+    
+    async def run(self, original_path: str, edited_path: str, input_caption: str, output_caption: str, use_qwen_analysis: bool = True) -> ImageJudgeResult:
         """
         Run image editing quality evaluation.
         
@@ -176,6 +218,7 @@ class ImageEditJudgeTask:
             edited_path: Path to edited image
             input_caption: Description of original image
             output_caption: Description of edited image
+            use_qwen_analysis: Whether to use Qwen API for intelligent analysis
             
         Returns:
             ImageJudgeResult with evaluation results
@@ -204,6 +247,12 @@ class ImageEditJudgeTask:
             
             # Generate suggestions
             suggestions = self._generate_suggestions(metrics, overall_score)
+            
+            # Add Qwen API analysis if enabled
+            if use_qwen_analysis:
+                qwen_suggestion = await self._analyze_with_qwen(original_path, edited_path, input_caption, output_caption)
+                if qwen_suggestion:
+                    suggestions.append(f"AI Analysis: {qwen_suggestion}")
             
             execution_time = time.time() - self.start_time
             logger.info(f"Image edit evaluation completed in {execution_time:.2f}s")

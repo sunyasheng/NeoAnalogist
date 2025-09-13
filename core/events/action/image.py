@@ -99,6 +99,7 @@ class ImageEditJudgeAction(Action):
     edited_path: str = ""
     input_caption: str = ""
     output_caption: str = ""
+    use_qwen_analysis: bool = True  # Whether to use Qwen API for intelligent analysis
     thought: str = ""
 
     action: str = "image_edit_judge"

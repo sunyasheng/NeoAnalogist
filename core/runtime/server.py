@@ -1191,7 +1191,7 @@ class ActionExecutor:
             
             # Create and run the edit judge task
             task = ImageEditJudgeTask()
-            result = await task.run(action.original_path, action.edited_path, action.input_caption, action.output_caption)
+            result = await task.run(action.original_path, action.edited_path, action.input_caption, action.output_caption, action.use_qwen_analysis)
             
             # Generate feedback summary for content
             feedback_summary = task.get_feedback_summary(result)
