@@ -27,7 +27,8 @@ from core.runtime.tasks.repo_edit import RepoEditTask
 from core.events.action import PaperRubricAction
 from core.events.observation.repo import PaperRubricObservation
 from core.events.observation.repo import GoTEditObservation, QwenAPIObservation
-from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction
+from core.events.observation.image import ImageEditJudgeObservation
 
 # Import PDF query functionality
 from core.events.action import PDFQueryAction
@@ -183,6 +184,10 @@ class DockerRuntime(ActionExecutionClient):
 
     def qwen_api(self, action: QwenAPIAction) -> QwenAPIObservation:
         """Call Qwen2.5-VL API for image analysis or text generation via the action execution server."""
+        return self.send_action_for_execution(action)
+
+    def image_edit_judge(self, action: ImageEditJudgeAction) -> ImageEditJudgeObservation:
+        """Call image edit judge to evaluate editing quality via the action execution server."""
         return self.send_action_for_execution(action)
 
     def _log_stream(self):
@@ -641,7 +646,7 @@ def create_test_repo(repo_dir: str) -> None:
 # python -m core.runtime.impl.docker.docker_runtime --image-entity-extract-path /app_sci/workspace/imgs/test.png --image-entity-extract-model gpt-4o
 # python -m core.runtime.impl.docker.docker_runtime --qwen-api-image-path /app_sci/workspace/imgs/test.png --qwen-api-prompt "Describe what you see in this image"
 # python -m core.runtime.impl.docker.docker_runtime --qwen-api-image-path /app_sci/workspace/imgs/test.png --qwen-api-prompt "What objects are in this image?" --qwen-api-max-tokens 200 --qwen-api-temperature 0.8
-
+# python -m core.runtime.impl.docker.docker_runtime --image-edit-judge-original-path /app_sci/workspace/imgs/original.jpg --image-edit-judge-edited-path /app_sci/workspace/imgs/edited.jpg --image-edit-judge-prompt "make the sky more dramatic"
 
 def main():
     """Test function for DockerRuntime class"""
@@ -717,6 +722,10 @@ def main():
     parser.add_argument("--qwen-api-max-tokens", type=int, default=128, help="Maximum tokens for Qwen API", metavar='TOKENS')
     parser.add_argument("--qwen-api-temperature", type=float, default=0.7, help="Temperature for Qwen API", metavar='TEMP')
     parser.add_argument("--qwen-api-top-p", type=float, default=0.9, help="Top-p for Qwen API", metavar='TOP_P')
+    # Image Edit Judge (evaluate image editing quality)
+    parser.add_argument("--image-edit-judge-original-path", type=str, help="Original image path for edit judge evaluation", metavar='ORIGINAL_PATH')
+    parser.add_argument("--image-edit-judge-edited-path", type=str, help="Edited image path for edit judge evaluation", metavar='EDITED_PATH')
+    parser.add_argument("--image-edit-judge-prompt", type=str, help="Edit prompt used for the image editing", metavar='PROMPT')
     # Experiment Manager (wrap experiments into MLflow scripts or query experiment history)
     parser.add_argument("--exp-manager-cmd", type=str, help="Bash command to wrap into MLflow experiment (e.g., python xxx.py)", metavar='CMD')
     parser.add_argument("--exp-manager-exp-name", type=str, help="Experiment name for the wrapper script", metavar='EXP_NAME')
@@ -1304,6 +1313,54 @@ def main():
             
             if result.error_message:
                 print(f"❌ Error: {result.error_message}")
+        elif args.image_edit_judge_original_path or args.image_edit_judge_edited_path or args.image_edit_judge_prompt:
+            if not all([args.image_edit_judge_original_path, args.image_edit_judge_edited_path, args.image_edit_judge_prompt]):
+                print("Error: --image-edit-judge-original-path, --image-edit-judge-edited-path, and --image-edit-judge-prompt are all required")
+                return
+            from core.events.action.image import ImageEditJudgeAction
+            
+            print(f"\n🎨 Image Edit Quality Judge")
+            print(f"Original Path: {args.image_edit_judge_original_path}")
+            print(f"Edited Path: {args.image_edit_judge_edited_path}")
+            print(f"Prompt: {args.image_edit_judge_prompt}")
+            
+            # Map container paths for image edit judge
+            original_path = args.image_edit_judge_original_path or ""
+            edited_path = args.image_edit_judge_edited_path or ""
+            
+            if original_path:
+                if original_path.startswith('/app_sci/'):
+                    # Use container path directly for image edit judge
+                    pass  # Keep as is since image edit judge runs in container
+                elif not original_path.startswith('/'):
+                    # Relative path - make it absolute in container
+                    original_path = os.path.join('/app_sci', original_path)
+            
+            if edited_path:
+                if edited_path.startswith('/app_sci/'):
+                    # Use container path directly for image edit judge
+                    pass  # Keep as is since image edit judge runs in container
+                elif not edited_path.startswith('/'):
+                    # Relative path - make it absolute in container
+                    edited_path = os.path.join('/app_sci', edited_path)
+            
+            action = ImageEditJudgeAction(
+                original_path=original_path,
+                edited_path=edited_path,
+                prompt=args.image_edit_judge_prompt or ""
+            )
+            result = runtime.image_edit_judge(action)
+            print({
+                'success': getattr(result, 'status', '') == 'success',
+                'error': getattr(result, 'error_message', ''),
+                'clip_i': getattr(result, 'clip_i', 0.0),
+                'clip_t': getattr(result, 'clip_t', 0.0),
+                'l1_distance': getattr(result, 'l1_distance', 0.0),
+                'l2_distance': getattr(result, 'l2_distance', 0.0),
+                'overall_score': getattr(result, 'overall_score', 0.0),
+                'suggestions': getattr(result, 'suggestions', []),
+                'content': getattr(result, 'content', ''),
+            })
         elif args.exp_manager_cmd or args.exp_manager_mode:
             # Experiment Manager entry (shell)
             print("\n🧪 Experiment Manager")
@@ -1569,6 +1626,7 @@ def main():
             print("    Optional flags: --pdf-query-embedding-model <model>, --pdf-query-top-k <number>")
             print("  --qwen-api-image-path <path> --qwen-api-prompt <prompt> Analyze image using Qwen2.5-VL API")
             print("    Optional flags: --qwen-api-mode <generate|chat>, --qwen-api-max-tokens <tokens>, --qwen-api-temperature <temp>, --qwen-api-top-p <top_p>")
+            print("  --image-edit-judge-original-path <path> --image-edit-judge-edited-path <path> --image-edit-judge-prompt <prompt> Evaluate image editing quality using AnyBench metrics")
             print("  --exp-manager-cmd <bash_cmd> Wrap bash command into MLflow experiment script (e.g., python xxx.py)")
             print("  --exp-manager-mode <wrap|query> Experiment manager mode: wrap (create MLflow script) or query (list experiments) (default: query)")
             print("    Optional: --exp-manager-exp-name <exp_name> (experiment name for the wrapper)")

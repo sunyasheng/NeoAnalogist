@@ -86,3 +86,24 @@ class QwenAPIAction(Action):
         else:
             return f"Qwen API: {self.prompt}"
 
+
+@dataclass
+class ImageEditJudgeAction(Action):
+    """Judge image editing quality using AnyBench metrics.
+    
+    Evaluates the quality of image editing by comparing original and edited images
+    using CLIP-I, CLIP-T, L1/L2 distances and providing suggestions.
+    """
+
+    original_path: str = ""
+    edited_path: str = ""
+    prompt: str = ""
+    thought: str = ""
+
+    action: str = "image_edit_judge"
+    runnable: ClassVar[bool] = True
+
+    @property
+    def message(self) -> str:
+        return f"Judge image edit quality: {self.original_path} -> {self.edited_path} (prompt: {self.prompt[:50]}...)"
+

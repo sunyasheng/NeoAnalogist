@@ -80,8 +80,8 @@ from core.runtime.tasks.repo_edit import RepoEditTask
 from core.runtime.tasks.pdf_query_task import PDFQueryTool
 from core.events.observation.repo import RepoEditObservation
 from core.runtime.plugins.jupyter import JupyterPlugin
-from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction
-from core.events.observation.image import ImageEntityExtractObservation
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction
+from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation
 from core.events.observation.repo import GoTEditObservation, QwenAPIObservation
 from core.runtime.tasks.image_entity_extract import ImageEntityExtractTask
 from core.runtime.tasks.got_edit import GoTEditClient
@@ -1179,6 +1179,42 @@ class ActionExecutor:
         except Exception as e:
             logger.error(f"Error in qwen_api: {str(e)}")
             return QwenAPIObservation(success=False, error_message=str(e))
+
+    async def image_edit_judge(self, action: ImageEditJudgeAction) -> ImageEditJudgeObservation:
+        """Judge image editing quality using AnyBench metrics.
+        
+        Evaluates the quality of image editing by comparing original and edited images
+        using CLIP-I, CLIP-T, L1/L2 distances and providing suggestions.
+        """
+        try:
+            from core.runtime.tasks.edit_judge import ImageEditJudgeTask
+            
+            # Create and run the edit judge task
+            task = ImageEditJudgeTask()
+            result = await task.run(action.original_path, action.edited_path, action.prompt)
+            
+            # Generate feedback summary for content
+            feedback_summary = task.get_feedback_summary(result)
+            
+            return ImageEditJudgeObservation(
+                content=feedback_summary,
+                clip_i=result.clip_i,
+                clip_t=result.clip_t,
+                l1_distance=result.l1_distance,
+                l2_distance=result.l2_distance,
+                overall_score=result.overall_score,
+                suggestions=result.suggestions,
+                status=result.status,
+                execution_time=0.0,  # Will be set by the framework
+                error_message=result.suggestions[0] if result.status == "error" and result.suggestions else ""
+            )
+        except Exception as e:
+            logger.error(f"Error in image_edit_judge: {str(e)}")
+            return ImageEditJudgeObservation(
+                content=f"❌ Image edit judge failed: {str(e)}",
+                status="error",
+                error_message=f"Failed to judge image edit quality: {str(e)}"
+            )
 
     async def repo_judge(self, action: RepoJudgeAction) -> RepoJudgeObservation:
         """Judge repository code based on rubric questions or rubric file."""
