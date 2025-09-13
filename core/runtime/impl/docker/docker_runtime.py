@@ -477,7 +477,7 @@ class DockerRuntime(ActionExecutionClient):
         cmd.extend([
             f"-v {self.config.workspace_base}:/app_sci",
             f"-v {os.path.join(self.config.workspace_base, 'logs')}:/app_sci/logs",
-            "mc-scientist:latest",
+            "imagebrush:latest",
             "python",
             "-u",
             "core/runtime/server.py",
@@ -756,7 +756,7 @@ def main():
     if args.ipython_code:
         from core.events.action import IPythonRunCellAction
         # Ensure the container is started and api_url is set, with Jupyter plugin loaded
-        runtime.start_container(image="mc-scientist:latest")
+        runtime.start_container(image="imagebrush:latest")
         # Patch the server command to always include --plugins jupyter
         if '--plugins' not in runtime.container.attrs['Config']['Cmd']:
             runtime.container.exec_run('supervisorctl stop server')
@@ -776,7 +776,7 @@ def main():
     try:
         # Start container
         print("Starting container...")
-        success = runtime.start_container(image="mc-scientist:latest")
+        success = runtime.start_container(image="imagebrush:latest")
         if not success:
             print("Failed to start container")
             return
