@@ -78,8 +78,8 @@ class ImageEditJudgeTask:
     
     def _calculate_metrics(self, original_path: str, edited_path: str, prompt: str) -> Dict[str, float]:
         """Calculate evaluation metrics using AnyBench functions."""
-        # Create image pairs for evaluation functions
-        image_pairs = [[original_path, edited_path, prompt]]
+        # Create image pairs for evaluation functions (each pair contains [generated_image, ground_truth_image])
+        image_pairs = [[edited_path, original_path]]  # Note: eval_clip_i compares generated vs ground truth
         
         # Calculate CLIP-I (image similarity)
         clip_i_score = eval_clip_i(
@@ -91,16 +91,25 @@ class ImageEditJudgeTask:
             skip_flag=False
         )
         
-        # Calculate CLIP-T (text-image alignment)
-        clip_t_score, _ = eval_clip_t(
-            args=None, 
-            image_pairs=image_pairs, 
-            model=self.clip_model, 
-            transform=self.clip_transform,
-            url_flag=True, 
-            caption_dict={},  # Not needed for single image evaluation
-            skip_flag=False
-        )
+        # Calculate CLIP-T (text-image alignment) - manually calculate for our use case
+        # Since eval_clip_t expects caption_dict, we'll calculate CLIP-T manually
+        
+        # Load images
+        edited_img = Image.open(edited_path).convert('RGB')
+        
+        # Encode image and text
+        image_input = self.clip_transform(edited_img).unsqueeze(0).to("cuda")
+        text_input = clip.tokenize([prompt]).to("cuda")
+        
+        with torch.no_grad():
+            image_features = self.clip_model.encode_image(image_input)
+            text_features = self.clip_model.encode_text(text_input)
+            
+            # Calculate cosine similarity
+            image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+            text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+            
+            clip_t_score = torch.cosine_similarity(image_features, text_features).item()
         
         # Calculate L1 and L2 distances
         l1_distance = eval_distance(image_pairs, metric='l1', url_flag=True, skip_flag=False)
