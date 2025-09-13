@@ -191,11 +191,10 @@ Please provide a concise analysis (2-3 sentences) focusing on the most important
 
             # Use edited image for analysis (the result we want to evaluate)
             qwen_client = QwenAPIClient()
-            result = await qwen_client.run(
-                image_path=edited_path,
+            result = qwen_client.generate(
                 prompt=analysis_prompt,
-                mode="generate",
-                max_tokens=150,
+                image_path=edited_path,
+                max_new_tokens=150,
                 temperature=0.3
             )
             
