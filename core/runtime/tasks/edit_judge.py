@@ -198,10 +198,11 @@ Please provide a concise analysis (2-3 sentences) focusing on the most important
                 temperature=0.3
             )
             
-            if result and result.get('content'):
-                return result['content'].strip()
+            if result and result.get('success', False) and result.get('response'):
+                return result['response'].strip()
             else:
-                logger.warning("Qwen API analysis failed or returned empty result")
+                error_msg = result.get('error', 'Unknown error') if result else 'No result'
+                logger.warning(f"Qwen API analysis failed: {error_msg}")
                 return None
                 
         except Exception as e:
