@@ -31,3 +31,8 @@ boto3==1.37.7
 faiss-cpu==1.11.0
 mlflow-skinny==2.14.1
 tornado
+torch
+torchvision
+scipy
+tqdm
+git+https://github.com/openai/CLIP.git
