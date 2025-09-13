@@ -1190,8 +1190,8 @@ class ActionExecutor:
             from core.runtime.tasks.edit_judge import ImageEditJudgeTask
             
             # Create and run the edit judge task
-                    task = ImageEditJudgeTask()
-                    result = await task.run(action.original_path, action.edited_path, action.input_caption, action.output_caption)
+            task = ImageEditJudgeTask()
+            result = await task.run(action.original_path, action.edited_path, action.input_caption, action.output_caption)
             
             # Generate feedback summary for content
             feedback_summary = task.get_feedback_summary(result)
