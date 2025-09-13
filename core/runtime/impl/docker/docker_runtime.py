@@ -646,7 +646,7 @@ def create_test_repo(repo_dir: str) -> None:
 # python -m core.runtime.impl.docker.docker_runtime --image-entity-extract-path /app_sci/workspace/imgs/test.png --image-entity-extract-model gpt-4o
 # python -m core.runtime.impl.docker.docker_runtime --qwen-api-image-path /app_sci/workspace/imgs/test.png --qwen-api-prompt "Describe what you see in this image"
 # python -m core.runtime.impl.docker.docker_runtime --qwen-api-image-path /app_sci/workspace/imgs/test.png --qwen-api-prompt "What objects are in this image?" --qwen-api-max-tokens 200 --qwen-api-temperature 0.8
-# python -m core.runtime.impl.docker.docker_runtime --image-edit-judge-original-path /app_sci/workspace/imgs/original.jpg --image-edit-judge-edited-path /app_sci/workspace/imgs/edited.jpg --image-edit-judge-prompt "make the sky more dramatic"
+# python -m core.runtime.impl.docker.docker_runtime --image-edit-judge-original-path /app_sci/workspace/imgs/original.jpg --image-edit-judge-edited-path /app_sci/workspace/imgs/edited.jpg --image-edit-judge-input-caption "a landscape with blue sky" --image-edit-judge-output-caption "a landscape with dramatic stormy sky"
 
 def main():
     """Test function for DockerRuntime class"""
@@ -725,7 +725,8 @@ def main():
     # Image Edit Judge (evaluate image editing quality)
     parser.add_argument("--image-edit-judge-original-path", type=str, help="Original image path for edit judge evaluation", metavar='ORIGINAL_PATH')
     parser.add_argument("--image-edit-judge-edited-path", type=str, help="Edited image path for edit judge evaluation", metavar='EDITED_PATH')
-    parser.add_argument("--image-edit-judge-prompt", type=str, help="Edit prompt used for the image editing", metavar='PROMPT')
+    parser.add_argument("--image-edit-judge-input-caption", type=str, help="Input caption (original image description) for edit judge evaluation", metavar='INPUT_CAPTION')
+    parser.add_argument("--image-edit-judge-output-caption", type=str, help="Output caption (edited image description) for edit judge evaluation", metavar='OUTPUT_CAPTION')
     # Experiment Manager (wrap experiments into MLflow scripts or query experiment history)
     parser.add_argument("--exp-manager-cmd", type=str, help="Bash command to wrap into MLflow experiment (e.g., python xxx.py)", metavar='CMD')
     parser.add_argument("--exp-manager-exp-name", type=str, help="Experiment name for the wrapper script", metavar='EXP_NAME')
@@ -1313,16 +1314,17 @@ def main():
             
             if result.error_message:
                 print(f"❌ Error: {result.error_message}")
-        elif args.image_edit_judge_original_path or args.image_edit_judge_edited_path or args.image_edit_judge_prompt:
-            if not all([args.image_edit_judge_original_path, args.image_edit_judge_edited_path, args.image_edit_judge_prompt]):
-                print("Error: --image-edit-judge-original-path, --image-edit-judge-edited-path, and --image-edit-judge-prompt are all required")
+        elif args.image_edit_judge_original_path or args.image_edit_judge_edited_path or args.image_edit_judge_input_caption or args.image_edit_judge_output_caption:
+            if not all([args.image_edit_judge_original_path, args.image_edit_judge_edited_path, args.image_edit_judge_input_caption, args.image_edit_judge_output_caption]):
+                print("Error: --image-edit-judge-original-path, --image-edit-judge-edited-path, --image-edit-judge-input-caption, and --image-edit-judge-output-caption are all required")
                 return
             from core.events.action.image import ImageEditJudgeAction
             
             print(f"\n🎨 Image Edit Quality Judge")
             print(f"Original Path: {args.image_edit_judge_original_path}")
             print(f"Edited Path: {args.image_edit_judge_edited_path}")
-            print(f"Prompt: {args.image_edit_judge_prompt}")
+            print(f"Input Caption: {args.image_edit_judge_input_caption}")
+            print(f"Output Caption: {args.image_edit_judge_output_caption}")
             
             # Map container paths for image edit judge
             original_path = args.image_edit_judge_original_path or ""
@@ -1347,7 +1349,8 @@ def main():
             action = ImageEditJudgeAction(
                 original_path=original_path,
                 edited_path=edited_path,
-                prompt=args.image_edit_judge_prompt or ""
+                input_caption=args.image_edit_judge_input_caption or "",
+                output_caption=args.image_edit_judge_output_caption or ""
             )
             result = runtime.image_edit_judge(action)
             print({
@@ -1626,7 +1629,7 @@ def main():
             print("    Optional flags: --pdf-query-embedding-model <model>, --pdf-query-top-k <number>")
             print("  --qwen-api-image-path <path> --qwen-api-prompt <prompt> Analyze image using Qwen2.5-VL API")
             print("    Optional flags: --qwen-api-mode <generate|chat>, --qwen-api-max-tokens <tokens>, --qwen-api-temperature <temp>, --qwen-api-top-p <top_p>")
-            print("  --image-edit-judge-original-path <path> --image-edit-judge-edited-path <path> --image-edit-judge-prompt <prompt> Evaluate image editing quality using AnyBench metrics")
+            print("  --image-edit-judge-original-path <path> --image-edit-judge-edited-path <path> --image-edit-judge-input-caption <input> --image-edit-judge-output-caption <output> Evaluate image editing quality using AnyBench metrics")
             print("  --exp-manager-cmd <bash_cmd> Wrap bash command into MLflow experiment script (e.g., python xxx.py)")
             print("  --exp-manager-mode <wrap|query> Experiment manager mode: wrap (create MLflow script) or query (list experiments) (default: query)")
             print("    Optional: --exp-manager-exp-name <exp_name> (experiment name for the wrapper)")

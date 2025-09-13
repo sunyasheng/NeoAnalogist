@@ -97,7 +97,8 @@ class ImageEditJudgeAction(Action):
 
     original_path: str = ""
     edited_path: str = ""
-    prompt: str = ""
+    input_caption: str = ""
+    output_caption: str = ""
     thought: str = ""
 
     action: str = "image_edit_judge"
@@ -105,5 +106,5 @@ class ImageEditJudgeAction(Action):
 
     @property
     def message(self) -> str:
-        return f"Judge image edit quality: {self.original_path} -> {self.edited_path} (prompt: {self.prompt[:50]}...)"
+        return f"Judge image edit quality: {self.original_path} -> {self.edited_path} (input: {self.input_caption[:30]}... -> output: {self.output_caption[:30]}...)"
 
