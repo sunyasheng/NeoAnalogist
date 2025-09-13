@@ -190,7 +190,7 @@ Please provide a concise analysis (2-3 sentences) focusing on the most important
 """
 
             # Use edited image for analysis (the result we want to evaluate)
-            qwen_client = QwenAPIClient()
+            qwen_client = QwenAPIClient(base_url="http://10.64.74.69:8200")
             result = qwen_client.generate(
                 prompt=analysis_prompt,
                 image_path=edited_path,
