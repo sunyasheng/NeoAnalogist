@@ -170,8 +170,8 @@ class ImageEditJudgeTask:
     async def _analyze_with_qwen(self, original_path: str, edited_path: str, input_caption: str, output_caption: str) -> Optional[str]:
         """Analyze image editing quality using Qwen API."""
         try:
-            # Import Qwen API task
-            from core.runtime.tasks.qwen_api import QwenAPITask
+            # Import Qwen API client
+            from core.runtime.tasks.qwen_api import QwenAPIClient
             
             # Create analysis prompt
             analysis_prompt = f"""
@@ -190,8 +190,8 @@ Please provide a concise analysis (2-3 sentences) focusing on the most important
 """
 
             # Use edited image for analysis (the result we want to evaluate)
-            qwen_task = QwenAPITask()
-            result = await qwen_task.run(
+            qwen_client = QwenAPIClient()
+            result = await qwen_client.run(
                 image_path=edited_path,
                 prompt=analysis_prompt,
                 mode="generate",
