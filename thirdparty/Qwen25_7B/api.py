@@ -63,7 +63,8 @@ async def qwen_generate_api(
     max_new_tokens: int = Form(128),
     temperature: float = Form(0.7),
     top_p: float = Form(0.9),
-    image: Optional[UploadFile] = File(None)
+    image: Optional[UploadFile] = File(None),
+    image_path: Optional[str] = Form(None)
 ):
     """Generate text response from Qwen2.5-VL model with optional image input."""
     try:
@@ -72,15 +73,31 @@ async def qwen_generate_api(
         # Prepare messages
         messages = [{"role": "user", "content": []}]
         
-        # Add image if provided
+        # Add image if provided (either uploaded file or file path)
+        temp_image_path = None
         if image:
-            # Read and process image
+            # Read and process uploaded image
             image_data = await image.read()
             pil_image = Image.open(io.BytesIO(image_data)).convert("RGB")
-            
-            # Save to temp file for processing
             temp_image_path = f"/tmp/qwen_temp_{uuid.uuid4()}.jpg"
-            pil_image.save(temp_image_path)
+        elif image_path and os.path.exists(image_path):
+            # Load image from file path
+            pil_image = Image.open(image_path).convert("RGB")
+            temp_image_path = f"/tmp/qwen_temp_{uuid.uuid4()}.jpg"
+        
+        if temp_image_path:
+            # Resize image to reduce memory usage
+            max_size = 512  # Maximum width or height
+            if pil_image.width > max_size or pil_image.height > max_size:
+                # Calculate new size maintaining aspect ratio
+                ratio = min(max_size / pil_image.width, max_size / pil_image.height)
+                new_width = int(pil_image.width * ratio)
+                new_height = int(pil_image.height * ratio)
+                pil_image = pil_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                print(f"[Qwen] Image resized to {new_width}x{new_height}")
+            
+            # Save to temp file for processing with compression
+            pil_image.save(temp_image_path, "JPEG", quality=95, optimize=True)
             
             messages[0]["content"].append({
                 "type": "image",
@@ -126,7 +143,7 @@ async def qwen_generate_api(
         )
         
         # Clean up temp file
-        if image and os.path.exists(temp_image_path):
+        if temp_image_path and os.path.exists(temp_image_path):
             os.remove(temp_image_path)
         
         return QwenResponse(
@@ -135,6 +152,9 @@ async def qwen_generate_api(
         )
         
     except Exception as e:
+        # Clean up temp file in case of error
+        if 'temp_image_path' in locals() and temp_image_path and os.path.exists(temp_image_path):
+            os.remove(temp_image_path)
         traceback.print_exc()
         return QwenResponse(
             response="",
