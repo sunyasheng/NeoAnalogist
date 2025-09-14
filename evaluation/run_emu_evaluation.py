@@ -147,13 +147,22 @@ def run_emu_evaluation(
         
         # Save generated image
         generated_image_path = generated_dir / f"generated_{sample['idx']}.png"
-        if os.path.exists(got_result["images"][0]):
+        source_image_path = got_result["images"][0]
+        
+        print(f"Looking for generated image at: {source_image_path}")
+        print(f"File exists: {os.path.exists(source_image_path)}")
+        
+        if os.path.exists(source_image_path):
             # Copy the generated image
-            with open(got_result["images"][0], 'rb') as src, open(generated_image_path, 'wb') as dst:
+            with open(source_image_path, 'rb') as src, open(generated_image_path, 'wb') as dst:
                 dst.write(src.read())
             print(f"Generated image saved: {generated_image_path}")
         else:
-            print(f"Generated image not found for sample {sample['idx']}")
+            print(f"Generated image not found at: {source_image_path}")
+            # List files in the directory to debug
+            cache_dir = os.path.dirname(source_image_path)
+            if os.path.exists(cache_dir):
+                print(f"Files in cache directory: {os.listdir(cache_dir)}")
             continue
         
         # Store result info
