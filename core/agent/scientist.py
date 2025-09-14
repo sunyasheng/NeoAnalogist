@@ -78,7 +78,7 @@ class Scientist(Agent):
         # Start the container
         self.logger.info("Starting Docker container...")
         try:
-            success = self.action_executor.start_container(image="mc-scientist:latest")
+            success = self.action_executor.start_container(image="imagebrush:latest")
             if not success:
                 # Get container logs if available
                 if self.action_executor.container:
