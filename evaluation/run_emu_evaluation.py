@@ -91,8 +91,11 @@ def run_emu_evaluation(
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     
-    generated_dir = output_path / "generated_images"
-    generated_dir.mkdir(parents=True, exist_ok=True)
+    # Create organized directories
+    src_images_dir = output_path / "src-images"
+    edited_images_dir = output_path / "edited-images"
+    src_images_dir.mkdir(parents=True, exist_ok=True)
+    edited_images_dir.mkdir(parents=True, exist_ok=True)
     
     # Load dataset
     print(f"Loading {dataset_name} dataset...")
@@ -119,7 +122,7 @@ def run_emu_evaluation(
         print(f"Instruction: {sample['instruction']}")
         
         # Save original image (it's already a PIL Image object)
-        original_image_path = generated_dir / f"original_{sample['idx']}.jpg"
+        original_image_path = src_images_dir / f"src_{sample['idx']}.jpg"
         try:
             sample['image'].save(str(original_image_path))
             print(f"Saved original image: {original_image_path}")
@@ -146,23 +149,31 @@ def run_emu_evaluation(
             continue
         
         # Save generated image
-        generated_image_path = generated_dir / f"generated_{sample['idx']}.png"
+        generated_image_path = edited_images_dir / f"edited_{sample['idx']}.png"
         source_image_path = got_result["images"][0]
         
-        print(f"Looking for generated image at: {source_image_path}")
-        print(f"File exists: {os.path.exists(source_image_path)}")
+        # Try different possible paths for the generated image
+        possible_paths = [
+            source_image_path,  # Original path from API
+            Path("/Users/suny0a/Proj/ImageBrush/NeoAnalogist/thirdparty/GoT") / source_image_path,  # Absolute path from GoT directory
+            Path.cwd() / source_image_path,  # Relative to current working directory
+        ]
         
-        if os.path.exists(source_image_path):
-            # Copy the generated image
-            with open(source_image_path, 'rb') as src, open(generated_image_path, 'wb') as dst:
-                dst.write(src.read())
-            print(f"Generated image saved: {generated_image_path}")
-        else:
-            print(f"Generated image not found at: {source_image_path}")
-            # List files in the directory to debug
-            cache_dir = os.path.dirname(source_image_path)
-            if os.path.exists(cache_dir):
-                print(f"Files in cache directory: {os.listdir(cache_dir)}")
+        found_image = False
+        for path in possible_paths:
+            if os.path.exists(path):
+                print(f"Found generated image at: {path}")
+                # Copy the generated image
+                with open(path, 'rb') as src, open(generated_image_path, 'wb') as dst:
+                    dst.write(src.read())
+                print(f"Generated image saved: {generated_image_path}")
+                found_image = True
+                break
+        
+        if not found_image:
+            print(f"Generated image not found in any of these paths:")
+            for path in possible_paths:
+                print(f"  - {path} (exists: {os.path.exists(path)})")
             continue
         
         # Store result info
