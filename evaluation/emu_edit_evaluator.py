@@ -26,7 +26,8 @@ from datasets import load_dataset
 
 # Import AnyBench utilities
 import sys
-sys.path.append('/Users/suny0a/Proj/ImageBrush/NeoAnalogist/thirdparty/AnySD/anybench')
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent / 'thirdparty' / 'AnySD' / 'anybench'))
 from eval.utils import eval_distance, eval_clip_i, eval_clip_t, is_all_black
 
 # Qwen API client removed - evaluation works independently
