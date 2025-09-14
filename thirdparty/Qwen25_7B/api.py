@@ -87,7 +87,7 @@ async def qwen_generate_api(
         
         if temp_image_path:
             # Resize image to reduce memory usage
-            max_size = 512  # Maximum width or height
+            max_size = 256  # Maximum width or height
             if pil_image.width > max_size or pil_image.height > max_size:
                 # Calculate new size maintaining aspect ratio
                 ratio = min(max_size / pil_image.width, max_size / pil_image.height)
