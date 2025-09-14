@@ -134,8 +134,15 @@ def run_emu_evaluation(
             image_path=str(original_image_path)
         )
         
-        if not got_result or not got_result.get("images"):
-            print(f"GoT API failed for sample {sample['idx']}")
+        print(f"GoT API response: {got_result}")
+        
+        if not got_result:
+            print(f"GoT API returned None for sample {sample['idx']}")
+            continue
+            
+        if not got_result.get("images"):
+            print(f"GoT API returned no images for sample {sample['idx']}")
+            print(f"Response keys: {list(got_result.keys()) if got_result else 'None'}")
             continue
         
         # Save generated image
