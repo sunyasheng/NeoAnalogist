@@ -59,17 +59,10 @@ async def got_generate_api(
     image_guidance_scale: float = Form(1.0),
     cond_image_guidance_scale: float = Form(4.0),
     image: Optional[UploadFile] = File(None),
-    return_type: str = Form("image"),  # image (default) | json
-    output_path: Optional[str] = Form(None)  # Custom output path
+    return_type: str = Form("image")  # image (default) | json
 ):
-    # Use custom output path if provided, otherwise use default temp directory
-    if output_path:
-        # Extract directory from output_path
-        temp_cache_dir = os.path.dirname(output_path)
-        os.makedirs(temp_cache_dir, exist_ok=True)
-    else:
-        temp_cache_dir = os.path.join("./tmp/got_cache", f"task_{uuid.uuid4()}")
-        os.makedirs(temp_cache_dir, exist_ok=True)
+    temp_cache_dir = os.path.join("./tmp/got_cache", f"task_{uuid.uuid4()}")
+    os.makedirs(temp_cache_dir, exist_ok=True)
     
     try:
         # Handle image upload for edit mode
@@ -104,18 +97,6 @@ async def got_generate_api(
 
         # Stream or JSON based on return_type
         images = result.get("images", [])
-        
-        # If output_path is specified, copy the generated image to that location
-        if output_path and images:
-            import shutil
-            source_image = images[0]
-            if os.path.exists(source_image):
-                # Ensure the output directory exists
-                os.makedirs(os.path.dirname(output_path), exist_ok=True)
-                # Copy the generated image to the specified output path
-                shutil.copy2(source_image, output_path)
-                # Update the images list to point to the new location
-                images = [output_path]
 
         # Default: stream first image
         if return_type == "image":
