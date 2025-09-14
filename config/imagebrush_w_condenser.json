@@ -32,6 +32,9 @@
         "task": null,
         "debug": false
     },
+    "env_vars": {
+        "QWEN_API_URL": "10.109.57.7:8200"
+    },
     "condenser": {
         "type": "pipeline",
         "condensers": [
