@@ -118,10 +118,13 @@ def run_emu_evaluation(
         print(f"Sample ID: {sample['idx']}")
         print(f"Instruction: {sample['instruction']}")
         
-        # Download original image
+        # Save original image (it's already a PIL Image object)
         original_image_path = generated_dir / f"original_{sample['idx']}.jpg"
-        if not download_image_from_url(sample['image'], str(original_image_path)):
-            print(f"Failed to download original image for sample {sample['idx']}")
+        try:
+            sample['image'].save(str(original_image_path))
+            print(f"Saved original image: {original_image_path}")
+        except Exception as e:
+            print(f"Failed to save original image for sample {sample['idx']}: {e}")
             continue
         
         # Generate edited image using GoT API
