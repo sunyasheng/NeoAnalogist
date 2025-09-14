@@ -1079,7 +1079,7 @@ class ActionExecutor:
                 return GoTEditObservation(success=False, error_message="output_path is required")
             
             # Use the original GoT service endpoint
-            client = GoTEditClient(base_url="http://localhost:8100")
+            client = GoTEditClient(base_url="http://10.64.74.69:8100")
             
             # Use container paths directly
             result = client.edit(
