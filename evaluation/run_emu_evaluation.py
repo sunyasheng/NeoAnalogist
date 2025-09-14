@@ -157,10 +157,12 @@ def run_emu_evaluation(
             
             # Try different possible paths for the generated image
             # The GoT API returns relative paths like "./tmp/got_cache/task_xxx/output_0.png"
+            # We need to find where the GoT API service is actually running from
             possible_paths = [
                 source_image_path,  # Original path from API
                 Path("/Users/suny0a/Proj/ImageBrush/NeoAnalogist/thirdparty/GoT") / source_image_path,  # Absolute path from GoT directory
                 Path.cwd() / source_image_path,  # Relative to current working directory
+                Path("/home/suny0a/Proj/ImageBrush/NeoAnalogist/thirdparty/GoT") / source_image_path,  # Linux path from GoT directory
             ]
             
             found_image = False
@@ -173,6 +175,26 @@ def run_emu_evaluation(
                     print(f"Generated image saved: {generated_image_path}")
                     found_image = True
                     break
+            
+            if not found_image:
+                # If still not found, try to search in the GoT directory for any recent files
+                got_dir = Path("/home/suny0a/Proj/ImageBrush/NeoAnalogist/thirdparty/GoT")
+                if got_dir.exists():
+                    tmp_dir = got_dir / "tmp" / "got_cache"
+                    if tmp_dir.exists():
+                        # Find the most recent task directory
+                        task_dirs = [d for d in tmp_dir.iterdir() if d.is_dir() and d.name.startswith("task_")]
+                        if task_dirs:
+                            # Sort by modification time, get the most recent
+                            latest_task_dir = max(task_dirs, key=lambda x: x.stat().st_mtime)
+                            output_file = latest_task_dir / "output_0.png"
+                            if output_file.exists():
+                                print(f"Found generated image in latest task directory: {output_file}")
+                                # Copy the generated image
+                                with open(output_file, 'rb') as src, open(generated_image_path, 'wb') as dst:
+                                    dst.write(src.read())
+                                print(f"Generated image saved: {generated_image_path}")
+                                found_image = True
             
             if not found_image:
                 print(f"Generated image not found in any of these paths:")
