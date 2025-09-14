@@ -1079,7 +1079,7 @@ class ActionExecutor:
                 return GoTEditObservation(success=False, error_message="output_path is required")
             
             # Use the original GoT service endpoint
-            client = GoTEditClient(base_url="http://10.64.74.69:8100")
+            client = GoTEditClient(base_url="http://localhost:8100")
             
             # Use container paths directly
             result = client.edit(
@@ -1135,7 +1135,7 @@ class ActionExecutor:
                 return QwenAPIObservation(success=False, error_message="messages is required for chat mode")
             
             # Use the Qwen API endpoint (same IP as GoT edit but different port)
-            client = QwenAPIClient(base_url="http://10.64.74.69:8200")
+            client = QwenAPIClient(base_url="http://localhost:8200")
             
             if action.mode == "generate":
                 # Generate mode - single request with optional image
