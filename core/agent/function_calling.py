@@ -26,11 +26,12 @@ from core.agent.tools.image_entity_extract import ImageEntityExtractTool
 from core.agent.tools.experiment_manager import ExperimentManagerTool
 from core.agent.tools.got_edit import GoTEditTool
 from core.agent.tools.qwen_api import QwenAPITool
+from core.agent.tools.image_edit_judge import ImageEditJudgeTool
 from core.events.action import (Action, AgentFinishAction, AgentThinkAction,
                                 BrowseInteractiveAction, BrowseURLAction,
                                 CmdRunAction, FileEditAction, FileReadAction,
                                 MessageAction, TaskGraphBuildAction, RepoPlanAction, RepoCreateAction, RepoAnalyzerAction, RepoUpdateAction, RepoVerifyAction, RepoRunAction, PaperReproductionAnalyzerAction, RepoDebugAction, RepoEditAction, PDFQueryAction, IPythonRunCellAction, RepoJudgeAction, PaperRubricAction, ExperimentManagerAction)
-from core.events.action.image import QwenAPIAction
+from core.events.action.image import QwenAPIAction, ImageEditJudgeAction
 from core.events.event import FileEditSource, FileReadSource, ToolCallMetadata
 
 
@@ -136,6 +137,19 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     image_guidance_scale=arguments.get("image_guidance_scale", 1.0),
                     cond_image_guidance_scale=arguments.get("cond_image_guidance_scale", 4.0),
                     output_path=arguments.get("output_path", ""),
+                    thought=thought,
+                )
+                action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
+            # ================================================
+            # ImageEditJudgeTool
+            # ================================================
+            elif tool_call.function.name == ImageEditJudgeTool["function"]["name"]:
+                action = ImageEditJudgeAction(
+                    original_path=arguments.get("original_path", ""),
+                    edited_path=arguments.get("edited_path", ""),
+                    input_caption=arguments.get("input_caption", ""),
+                    output_caption=arguments.get("output_caption", ""),
+                    use_qwen_analysis=arguments.get("use_qwen_analysis", True),
                     thought=thought,
                 )
                 action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
@@ -512,7 +526,8 @@ def get_tools(
         FinishTool,
         # ImageEntityExtractTool,
         GoTEditTool,
-        QwenAPITool,
+        ImageEditJudgeTool,
+        # QwenAPITool,
         # PDFQueryTool,
         IPythonTool,
         # PaperRubricTool,
