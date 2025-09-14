@@ -43,7 +43,8 @@ class GoTAPIClient:
             "guidance_scale": kwargs.get("guidance_scale", 7.5),
             "image_guidance_scale": kwargs.get("image_guidance_scale", 1.0),
             "cond_image_guidance_scale": kwargs.get("cond_image_guidance_scale", 4.0),
-            "return_type": "json"
+            "return_type": "json",
+            "output_path": kwargs.get("output_path", None)  # Add output_path parameter
         }
         
         try:
@@ -132,9 +133,14 @@ def run_emu_evaluation(
         
         # Generate edited image using GoT API
         print("Calling GoT API for image editing...")
+        
+        # Set output path for the generated image
+        generated_image_path = edited_images_dir / f"edited_{sample['idx']}.png"
+        
         got_result = got_client.generate_image_edit(
             prompt=sample['instruction'],
-            image_path=str(original_image_path)
+            image_path=str(original_image_path),
+            output_path=str(generated_image_path)
         )
         
         print(f"GoT API response: {got_result}")
@@ -148,33 +154,25 @@ def run_emu_evaluation(
             print(f"Response keys: {list(got_result.keys()) if got_result else 'None'}")
             continue
         
-        # Save generated image
-        generated_image_path = edited_images_dir / f"edited_{sample['idx']}.png"
-        source_image_path = got_result["images"][0]
-        
-        # Try different possible paths for the generated image
-        possible_paths = [
-            source_image_path,  # Original path from API
-            Path("/Users/suny0a/Proj/ImageBrush/NeoAnalogist/thirdparty/GoT") / source_image_path,  # Absolute path from GoT directory
-            Path.cwd() / source_image_path,  # Relative to current working directory
-        ]
-        
-        found_image = False
-        for path in possible_paths:
-            if os.path.exists(path):
-                print(f"Found generated image at: {path}")
-                # Copy the generated image
-                with open(path, 'rb') as src, open(generated_image_path, 'wb') as dst:
-                    dst.write(src.read())
-                print(f"Generated image saved: {generated_image_path}")
-                found_image = True
-                break
-        
-        if not found_image:
-            print(f"Generated image not found in any of these paths:")
-            for path in possible_paths:
-                print(f"  - {path} (exists: {os.path.exists(path)})")
-            continue
+        # Check if the generated image was saved to the specified output path
+        if os.path.exists(generated_image_path):
+            print(f"Generated image saved successfully: {generated_image_path}")
+        else:
+            # Fallback: try to find the image in the API response
+            if got_result.get("images"):
+                source_image_path = got_result["images"][0]
+                if os.path.exists(source_image_path):
+                    print(f"Found generated image at: {source_image_path}")
+                    # Copy the generated image to our desired location
+                    with open(source_image_path, 'rb') as src, open(generated_image_path, 'wb') as dst:
+                        dst.write(src.read())
+                    print(f"Generated image copied to: {generated_image_path}")
+                else:
+                    print(f"Generated image not found at: {source_image_path}")
+                    continue
+            else:
+                print("No images in GoT API response")
+                continue
         
         # Store result info
         result_info = {
