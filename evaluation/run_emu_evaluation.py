@@ -70,7 +70,7 @@ def download_image_from_url(url: str, save_path: str) -> bool:
         return False
 
 def run_emu_evaluation(
-    dataset_name: str = "emu_val",
+    dataset_name: str = "validation",
     max_samples: int = 10,  # Limit for testing
     output_dir: str = "./emu_eval_results",
     got_api_url: str = "http://localhost:8100"
@@ -233,8 +233,8 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Run Emu-Edit evaluation with GoT API')
-    parser.add_argument('--dataset', default='emu_val', 
-                       help='Dataset split to use (emu_val, emu_test)')
+    parser.add_argument('--dataset', default='validation', 
+                       help='Dataset split to use (validation, test)')
     parser.add_argument('--max_samples', type=int, default=10,
                        help='Maximum number of samples to process')
     parser.add_argument('--output_dir', default='./emu_eval_results',
