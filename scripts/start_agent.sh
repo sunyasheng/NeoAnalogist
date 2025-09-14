@@ -9,11 +9,11 @@ if [ -n "$WORK_DIR" ]; then
     PYTHONPATH=./ python main.py \
         --config config/imagebrush_w_condenser.json \
         --task "$PROMPT" \
-        --max-steps 300 \
+        --max-steps 20 \
         --work-dir "$WORK_DIR"
 else
     PYTHONPATH=./ python main.py \
         --config config/imagebrush_w_condenser.json \
         --task "$PROMPT" \
-        --max-steps 300
+        --max-steps 20
 fi
