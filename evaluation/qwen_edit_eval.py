@@ -47,7 +47,7 @@ def concatenate_images_horizontally(left_path: str, right_path: str, max_side: i
 def build_eval_prompt(instruction: str) -> str:
     """Simplified prompt to debug message format with Qwen chat (two images)."""
     return (
-        "Answer in English. Describe the two images provided in this message.\n"
+        "Describe the two images provided in this message.\n"
         "The first image is the Source image, the second image is the Edited image.\n"
         f"Editing instruction (for reference only): {instruction}\n"
     )
