@@ -98,10 +98,11 @@ def call_qwen_chat(api_url: str, prompt: str, image_paths: list[str], max_new_to
     """Call Qwen chat endpoint with two image paths and prompt (multi-image without concatenation)."""
     url = api_url.rstrip("/") + "/qwen/chat"
 
-    # Build messages: two images + text
+    # Build messages using official Qwen2.5 format: file:// URLs for local images
     content = []
     for img_path in image_paths:
-        content.append({"type": "image", "image": img_path})
+        # Use file:// protocol for local paths as per Qwen2.5 documentation
+        content.append({"type": "image", "image": f"file://{os.path.abspath(img_path)}"})
     content.append({"type": "text", "text": prompt})
     messages = [{"role": "user", "content": content}]
 
