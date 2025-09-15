@@ -128,8 +128,10 @@ def run_emu_evaluation(
     # Create organized directories
     src_images_dir = output_path / "src-images"
     edited_images_dir = output_path / "edited-images"
+    gt_images_dir = output_path / "gt-images"
     src_images_dir.mkdir(parents=True, exist_ok=True)
     edited_images_dir.mkdir(parents=True, exist_ok=True)
+    gt_images_dir.mkdir(parents=True, exist_ok=True)
     
     # Load dataset
     print(f"Loading {dataset_name} dataset...")
@@ -209,13 +211,37 @@ def run_emu_evaluation(
                 dst.write(src.read())
             print(f"Generated image saved: {generated_image_path}")
         
+        # Prepare ground-truth edited image path (ensure serializable)
+        gt_image_obj = sample.get('edited_image', None)
+        ground_truth_path = gt_images_dir / f"gt_{sample['idx']}.png"
+        try:
+            if hasattr(gt_image_obj, 'save'):
+                # PIL Image
+                gt_image_obj.save(str(ground_truth_path))
+            elif isinstance(gt_image_obj, str):
+                if gt_image_obj.startswith('http://') or gt_image_obj.startswith('https://'):
+                    if not download_image_from_url(gt_image_obj, str(ground_truth_path)):
+                        ground_truth_path = Path("")
+                else:
+                    # treat as local path
+                    if os.path.exists(gt_image_obj):
+                        from shutil import copyfile
+                        copyfile(gt_image_obj, str(ground_truth_path))
+                    else:
+                        ground_truth_path = Path("")
+            else:
+                # Unknown type
+                ground_truth_path = Path("")
+        except Exception:
+            ground_truth_path = Path("")
+
         # Store result info (handle stream mode where no JSON response exists)
         result_info = {
             'idx': sample['idx'],
             'instruction': sample['instruction'],
             'original_image': str(original_image_path),
             'generated_image': str(generated_image_path),
-            'ground_truth_image': sample['edited_image'],
+            'ground_truth_image': str(ground_truth_path) if ground_truth_path else "",
             'got_reasoning': (got_result.get("got_text", "") if 'got_result' in locals() and got_result else ""),
             'success': True
         }
