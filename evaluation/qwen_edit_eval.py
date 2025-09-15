@@ -48,7 +48,8 @@ def build_eval_prompt(instruction: str) -> str:
     """Build the evaluation prompt for Qwen using the provided template."""
     return (
         "你是一位专业的数字艺术家。你需要根据给定的规则评估由 AI 生成的图像效果。\n"
-        "你必须按照以下形式给出输出（推理保持简洁）：\"score\" : [...], \"reasoning\" : \"...\"，且不要输出其他内容。\n"
+        "必须严格输出：{\"score\":[score1,score2],\"reasoning\":\"一句简短原因\"}，且不要输出其他任何内容。\n"
+        "- 必须包含 reasoning（一句话、简洁），不得省略；只给分数视为无效。\n"
         "将提供两张图像：\n"
         "第一张是原始的 AI 生成图像，第二张是编辑后的版本。你的目标是评估第二张图是否成功执行了编辑指令。注意，有时由于编辑失败，两张图可能看起来相同。\n"
         "评分尺度为 0 到 10：\n"
