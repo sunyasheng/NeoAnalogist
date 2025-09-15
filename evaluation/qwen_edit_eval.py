@@ -7,6 +7,7 @@ from typing import Tuple
 
 from PIL import Image
 import requests
+import json
 
 
 def concatenate_images_horizontally(left_path: str, right_path: str, max_side: int = 1024) -> Image.Image:
@@ -93,8 +94,33 @@ def call_qwen_generate(api_url: str, prompt: str, image: Image.Image, max_new_to
     return js.get("response", "")
 
 
+def call_qwen_chat(api_url: str, prompt: str, image_paths: list[str], max_new_tokens: int, temperature: float, top_p: float) -> str:
+    """Call Qwen chat endpoint with two image paths and prompt (multi-image without concatenation)."""
+    url = api_url.rstrip("/") + "/qwen/chat"
+
+    # Build messages: two images + text
+    content = []
+    for img_path in image_paths:
+        content.append({"type": "image", "image": img_path})
+    content.append({"type": "text", "text": prompt})
+    messages = [{"role": "user", "content": content}]
+
+    data = {
+        "messages": json.dumps(messages, ensure_ascii=False),
+        "max_new_tokens": str(max_new_tokens),
+        "temperature": str(temperature),
+        "top_p": str(top_p),
+    }
+    resp = requests.post(url, data=data, timeout=180)
+    resp.raise_for_status()
+    js = resp.json()
+    if not js.get("success", False):
+        raise RuntimeError(js.get("error", "Qwen chat API returned failure"))
+    return js.get("response", "")
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate edit success via Qwen with a GPT-4o-style prompt")
+    parser = argparse.ArgumentParser(description="Evaluate edit success via Qwen (chat, two images)")
     parser.add_argument("--original", required=True, help="Path to source/original image")
     parser.add_argument("--edited", required=True, help="Path to edited image")
     parser.add_argument("--instruction", required=True, help="Editing instruction text")
@@ -111,12 +137,13 @@ def main():
         print(f"Edited image not found: {args.edited}")
         sys.exit(1)
 
-    concat = concatenate_images_horizontally(args.original, args.edited, max_side=1024)
     prompt = build_eval_prompt(args.instruction)
-    response = call_qwen_generate(
+
+    # Always use chat with two images
+    response = call_qwen_chat(
         api_url=args.api_url,
         prompt=prompt,
-        image=concat,
+        image_paths=[args.original, args.edited],
         max_new_tokens=args.max_new_tokens,
         temperature=args.temperature,
         top_p=args.top_p,
