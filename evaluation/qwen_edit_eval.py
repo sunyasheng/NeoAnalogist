@@ -45,11 +45,22 @@ def concatenate_images_horizontally(left_path: str, right_path: str, max_side: i
 
 
 def build_eval_prompt(instruction: str) -> str:
-    """Simplified prompt to debug message format with Qwen chat (two images)."""
+    """Build the evaluation prompt for Qwen using the provided template."""
     return (
-        "Describe the two images provided in this message.\n"
-        "The first image is the Source image, the second image is the Edited image.\n"
-        f"Editing instruction (for reference only): {instruction}\n"
+        "你是一位专业的数字艺术家。你需要根据给定的规则评估由 AI 生成的图像效果。\n"
+        "你必须按照以下形式给出输出（推理保持简洁）：\"score\" : [...], \"reasoning\" : \"...\"，且不要输出其他内容。\n"
+        "将提供两张图像：\n"
+        "第一张是原始的 AI 生成图像，第二张是编辑后的版本。你的目标是评估第二张图是否成功执行了编辑指令。注意，有时由于编辑失败，两张图可能看起来相同。\n"
+        "评分尺度为 0 到 10：\n"
+        "根据编辑是否成功给出 0 到 10 的分数。\n"
+        "- 0 表示编辑后的场景完全没有遵循编辑指令。\n"
+        "- 10 表示编辑后的场景完美地遵循了编辑指令文本。\n"
+        "- 如果指令中的目标对象在原始图像中不存在，分数为 0。\n"
+        "第二个 0 到 10 的分数用于评估过度编辑的程度：\n"
+        "- 0 表示编辑后的场景与原始场景完全不同。\n"
+        "- 10 表示在尽可能少变动的前提下完成了有效编辑。\n"
+        "将两个分数放入列表，输出为 score = [score1, score2]，其中 score1 评估编辑成功度，score2 评估过度编辑程度。\n"
+        f"编辑指令：{instruction}\n"
     )
 
 
