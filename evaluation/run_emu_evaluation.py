@@ -271,14 +271,25 @@ def run_emu_evaluation(
     print("="*80)
     
     try:
-        # Create image pairs for evaluation
+        # Create image pairs for evaluation (load PIL images and captions)
+        evaluator.load_models()
         image_pairs = []
-        for result in results:
-            if result['success']:
-                image_pairs.append((
-                    result['generated_image'],
-                    result['ground_truth_image']
-                ))
+        for r in results:
+            if not r.get('success'):
+                continue
+            gen_path = r.get('generated_image', '')
+            gt_path = r.get('ground_truth_image', '')
+            if not gen_path or not gt_path:
+                continue
+            if not (os.path.exists(gen_path) and os.path.exists(gt_path)):
+                continue
+            try:
+                gen_img = Image.open(gen_path).convert('RGB')
+                gt_img = Image.open(gt_path).convert('RGB')
+                caption = r.get('instruction', '')
+                image_pairs.append((gen_img, gt_img, caption))
+            except Exception as e:
+                print(f"Failed to load pair: {gen_path} | {gt_path} -> {e}")
         
         if not image_pairs:
             print("No valid image pairs for evaluation")
@@ -286,11 +297,8 @@ def run_emu_evaluation(
         
         print(f"Evaluating {len(image_pairs)} image pairs...")
         
-        # Run evaluation using the evaluator
-        eval_results = evaluator.evaluate_image_pairs(
-            image_pairs=image_pairs,
-            captions=[r['instruction'] for r in results if r['success']]
-        )
+        # Run evaluation using available API
+        eval_results = evaluator.evaluate_metrics(image_pairs)
         
         # Save evaluation results
         eval_file = output_path / "evaluation_results.json"
