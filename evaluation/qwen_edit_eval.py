@@ -45,26 +45,11 @@ def concatenate_images_horizontally(left_path: str, right_path: str, max_side: i
 
 
 def build_eval_prompt(instruction: str) -> str:
-    """Build the evaluation prompt for Qwen using the provided template."""
+    """Simplified prompt to debug message format with Qwen chat (two images)."""
     return (
-        "You are a professional digital artist. You will have to evaluate the effectiveness of the AI-generated image(s) based on\n"
-        "the given rules. You will have to give your output in this way (Keep your reasoning concise and short.): ”score” : [...],\n"
-        "”reasoning” : ”...” and don’t output anything else.\n"
-        "Two images will be provided:\n"
-        "The first being the original AI-generated image and the second being an edited version of the first. The objective is to\n"
-        "evaluate how successfully the editing instruction has been executed in the second image. Note that sometimes the two\n"
-        "images might look identical due to the failure of image edit.\n"
-        "From a scale 0 to 10:\n"
-        "A score from 0 to 10 will be given based on the success of the editing.\n"
-        "- 0 indicates that the scene in the edited image does not follow the editing instruction at all.\n"
-        "- 10 indicates that the scene in the edited image follow the editing instruction text perfectly.\n"
-        "- If the object in the instruction is not present in the original image at all, the score will be 0.\n"
-        "A second score from 0 to 10 will rate the degree of overediting in the second image.\n"
-        "- 0 indicates that the scene in the edited image is completely different from the original.\n"
-        "- 10 indicates that the edited image can be recognized as a minimal edited yet effective version of original.\n"
-        "Put the score in a list such that output score = [score1, score2], where ’score1’ evaluates the editing success and ’score2’\n"
-        "evaluates the degree of overediting.\n"
-        f"Editing instruction: {instruction}\n"
+        "Answer in English. Describe the two images provided in this message.\n"
+        "The first image is the Source image, the second image is the Edited image.\n"
+        f"Editing instruction (for reference only): {instruction}\n"
     )
 
 
