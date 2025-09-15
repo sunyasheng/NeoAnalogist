@@ -56,6 +56,40 @@ class GoTAPIClient:
             print(f"Error calling GoT API: {e}")
             return None
 
+    def generate_image_edit_stream(self, prompt: str, image_path: str, output_path: str, **kwargs) -> bool:
+        """Edit image using GoT API and stream the image back directly, saving to output_path.
+
+        Returns True on success, False otherwise.
+        """
+        url = f"{self.base_url}/got/generate"
+
+        data = {
+            "prompt": prompt,
+            "mode": "edit",
+            "height": kwargs.get("height", 1024),
+            "width": kwargs.get("width", 1024),
+            "max_new_tokens": kwargs.get("max_new_tokens", 1024),
+            "num_inference_steps": kwargs.get("num_inference_steps", 50),
+            "guidance_scale": kwargs.get("guidance_scale", 7.5),
+            "image_guidance_scale": kwargs.get("image_guidance_scale", 1.0),
+            "cond_image_guidance_scale": kwargs.get("cond_image_guidance_scale", 4.0),
+            "return_type": "image"
+        }
+
+        try:
+            with open(image_path, 'rb') as f:
+                files = {"image": f}
+                # stream binary image back
+                response = requests.post(url, data=data, files=files, timeout=600)
+                response.raise_for_status()
+                # Save bytes to output_path
+                with open(output_path, 'wb') as out_f:
+                    out_f.write(response.content)
+                return True
+        except Exception as e:
+            print(f"Error calling GoT API (stream): {e}")
+            return False
+
 def download_image_from_url(url: str, save_path: str) -> bool:
     """Download image from URL and save to local path"""
     try:
@@ -130,80 +164,50 @@ def run_emu_evaluation(
             print(f"Failed to save original image for sample {sample['idx']}: {e}")
             continue
         
-        # Generate edited image using GoT API
-        print("Calling GoT API for image editing...")
-        
-        got_result = got_client.generate_image_edit(
-            prompt=sample['instruction'],
-            image_path=str(original_image_path)
-        )
-        
-        print(f"GoT API response: {got_result}")
-        
-        if not got_result:
-            print(f"GoT API returned None for sample {sample['idx']}")
-            continue
-            
-        if not got_result.get("images"):
-            print(f"GoT API returned no images for sample {sample['idx']}")
-            print(f"Response keys: {list(got_result.keys()) if got_result else 'None'}")
-            continue
-        
-        # Save generated image
+        # Generate edited image using GoT API (prefer streaming to avoid tmp paths)
+        print("Calling GoT API for image editing (stream mode)...")
+
+        # Determine output path first
         generated_image_path = edited_images_dir / f"edited_{sample['idx']}.png"
-        
-        if got_result.get("images"):
+
+        ok = got_client.generate_image_edit_stream(
+            prompt=sample['instruction'],
+            image_path=str(original_image_path),
+            output_path=str(generated_image_path)
+        )
+
+        if not ok:
+            print("Stream mode failed, falling back to JSON mode...")
+            got_result = got_client.generate_image_edit(
+                prompt=sample['instruction'],
+                image_path=str(original_image_path)
+            )
+
+            print(f"GoT API response: {got_result}")
+            
+            if not got_result or not got_result.get("images"):
+                print(f"GoT API returned no images for sample {sample['idx']}")
+                continue
+            
+            # Fallback: try to resolve relative paths
             source_image_path = got_result["images"][0]
-            
-            # Try different possible paths for the generated image
-            # The GoT API returns relative paths like "./tmp/got_cache/task_xxx/output_0.png"
-            # We need to find where the GoT API service is actually running from
             possible_paths = [
-                source_image_path,  # Original path from API
-                Path("/Users/suny0a/Proj/ImageBrush/NeoAnalogist/thirdparty/GoT") / source_image_path,  # Absolute path from GoT directory
-                Path.cwd() / source_image_path,  # Relative to current working directory
-                Path("/home/suny0a/Proj/ImageBrush/NeoAnalogist/thirdparty/GoT") / source_image_path,  # Linux path from GoT directory
+                source_image_path,
+                Path("/Users/suny0a/Proj/ImageBrush/NeoAnalogist/thirdparty/GoT") / source_image_path,
+                Path.cwd() / source_image_path,
+                Path("/home/suny0a/Proj/ImageBrush/NeoAnalogist/thirdparty/GoT") / source_image_path,
             ]
-            
-            found_image = False
+            resolved = None
             for path in possible_paths:
                 if os.path.exists(path):
-                    print(f"Found generated image at: {path}")
-                    # Copy the generated image
-                    with open(path, 'rb') as src, open(generated_image_path, 'wb') as dst:
-                        dst.write(src.read())
-                    print(f"Generated image saved: {generated_image_path}")
-                    found_image = True
+                    resolved = path
                     break
-            
-            if not found_image:
-                # If still not found, try to search in the GoT directory for any recent files
-                got_dir = Path("/home/suny0a/Proj/ImageBrush/NeoAnalogist/thirdparty/GoT")
-                if got_dir.exists():
-                    tmp_dir = got_dir / "tmp" / "got_cache"
-                    if tmp_dir.exists():
-                        # Find the most recent task directory
-                        task_dirs = [d for d in tmp_dir.iterdir() if d.is_dir() and d.name.startswith("task_")]
-                        if task_dirs:
-                            # Sort by modification time, get the most recent
-                            latest_task_dir = max(task_dirs, key=lambda x: x.stat().st_mtime)
-                            output_file = latest_task_dir / "output_0.png"
-                            if output_file.exists():
-                                print(f"Found generated image in latest task directory: {output_file}")
-                                # Copy the generated image
-                                with open(output_file, 'rb') as src, open(generated_image_path, 'wb') as dst:
-                                    dst.write(src.read())
-                                print(f"Generated image saved: {generated_image_path}")
-                                found_image = True
-            
-            if not found_image:
-                print(f"Generated image not found in any of these paths:")
-                for path in possible_paths:
-                    print(f"  - {path} (exists: {os.path.exists(path)})")
+            if not resolved:
+                print("Could not locate generated image from JSON response.")
                 continue
-        else:
-            print("No images in GoT API response")
-            continue
+            with open(resolved, 'rb') as src, open(generated_image_path, 'wb') as dst:
+                dst.write(src.read())
+            print(f"Generated image saved: {generated_image_path}")
         
         # Store result info
         result_info = {
