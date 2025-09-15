@@ -209,14 +209,14 @@ def run_emu_evaluation(
                 dst.write(src.read())
             print(f"Generated image saved: {generated_image_path}")
         
-        # Store result info
+        # Store result info (handle stream mode where no JSON response exists)
         result_info = {
             'idx': sample['idx'],
             'instruction': sample['instruction'],
             'original_image': str(original_image_path),
             'generated_image': str(generated_image_path),
             'ground_truth_image': sample['edited_image'],
-            'got_reasoning': got_result.get("got_text", ""),
+            'got_reasoning': (got_result.get("got_text", "") if 'got_result' in locals() and got_result else ""),
             'success': True
         }
         results.append(result_info)
