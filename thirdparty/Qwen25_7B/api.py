@@ -222,6 +222,106 @@ async def qwen_chat_api(
             error=str(e)
         )
 
+@app.post("/qwen/chat_upload", response_model=QwenResponse)
+async def qwen_chat_upload_api(
+    prompt: str = Form(...),
+    max_new_tokens: int = Form(128),
+    temperature: float = Form(0.7),
+    top_p: float = Form(0.9),
+    image1: Optional[UploadFile] = File(None),
+    image2: Optional[UploadFile] = File(None)
+):
+    """Chat with Qwen2.5-VL model using direct image uploads (supports 1-2 images)."""
+    temp_image_paths = []
+    try:
+        model, processor = _load_model_once()
+        
+        # Prepare messages
+        messages = [{"role": "user", "content": []}]
+        
+        # Process uploaded images
+        for i, uploaded_file in enumerate([image1, image2], 1):
+            if uploaded_file:
+                # Read and process uploaded image
+                image_data = await uploaded_file.read()
+                pil_image = Image.open(io.BytesIO(image_data)).convert("RGB")
+                
+                # Resize image to reduce memory usage
+                max_size = 256  # Maximum width or height
+                if pil_image.width > max_size or pil_image.height > max_size:
+                    # Calculate new size maintaining aspect ratio
+                    ratio = min(max_size / pil_image.width, max_size / pil_image.height)
+                    new_width = int(pil_image.width * ratio)
+                    new_height = int(pil_image.height * ratio)
+                    pil_image = pil_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    print(f"[Qwen] Image {i} resized to {new_width}x{new_height}")
+                
+                # Save to temp file
+                temp_image_path = f"/tmp/qwen_upload_{uuid.uuid4()}.jpg"
+                pil_image.save(temp_image_path, "JPEG", quality=95, optimize=True)
+                temp_image_paths.append(temp_image_path)
+                
+                messages[0]["content"].append({
+                    "type": "image",
+                    "image": temp_image_path,
+                })
+        
+        # Add text prompt
+        messages[0]["content"].append({
+            "type": "text", 
+            "text": prompt
+        })
+        
+        # Prepare for inference
+        text = processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        image_inputs, video_inputs = process_vision_info(messages)
+        inputs = processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        )
+        inputs = inputs.to("cuda" if torch.cuda.is_available() else "cpu")
+        
+        # Generate response
+        with torch.no_grad():
+            generated_ids = model.generate(
+                **inputs, 
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                do_sample=True
+            )
+        
+        # Decode response
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
+        output_text = processor.batch_decode(
+            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )
+        
+        return QwenResponse(
+            response=output_text[0] if output_text else "",
+            success=True
+        )
+        
+    except Exception as e:
+        traceback.print_exc()
+        return QwenResponse(
+            response="",
+            success=False,
+            error=str(e)
+        )
+    finally:
+        # Clean up temp files
+        for temp_path in temp_image_paths:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("QWEN_API_PORT", 8200))

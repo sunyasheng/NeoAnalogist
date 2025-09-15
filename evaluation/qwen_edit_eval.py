@@ -113,12 +113,47 @@ def call_qwen_chat(api_url: str, prompt: str, image_paths: list[str], max_new_to
     return js.get("response", "")
 
 
+def call_qwen_upload(api_url: str, prompt: str, image_paths: list[str], max_new_tokens: int, temperature: float, top_p: float) -> str:
+    """Call Qwen chat_upload endpoint with direct image uploads (supports 1-2 images)."""
+    url = api_url.rstrip("/") + "/qwen/chat_upload"
+
+    # Prepare files for upload
+    files = {}
+    data = {
+        "prompt": prompt,
+        "max_new_tokens": str(max_new_tokens),
+        "temperature": str(temperature),
+        "top_p": str(top_p),
+    }
+    
+    # Upload up to 2 images
+    for i, img_path in enumerate(image_paths[:2], 1):
+        if os.path.exists(img_path):
+            files[f"image{i}"] = (os.path.basename(img_path), open(img_path, 'rb'), 'image/jpeg')
+        else:
+            print(f"Warning: Image {i} not found: {img_path}")
+    
+    try:
+        resp = requests.post(url, files=files, data=data, timeout=180)
+        resp.raise_for_status()
+        js = resp.json()
+        if not js.get("success", False):
+            raise RuntimeError(js.get("error", "Qwen upload API returned failure"))
+        return js.get("response", "")
+    finally:
+        # Close file handles
+        for file_handle in files.values():
+            if hasattr(file_handle[1], 'close'):
+                file_handle[1].close()
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate edit success via Qwen (chat, two images)")
+    parser = argparse.ArgumentParser(description="Evaluate edit success via Qwen (supports both chat and upload modes)")
     parser.add_argument("--original", required=True, help="Path to source/original image")
     parser.add_argument("--edited", required=True, help="Path to edited image")
     parser.add_argument("--instruction", required=True, help="Editing instruction text")
     parser.add_argument("--api-url", default="http://localhost:8200", help="Qwen API base URL")
+    parser.add_argument("--upload", action="store_true", help="Use direct image upload mode (recommended for remote APIs)")
     parser.add_argument("--max-new-tokens", type=int, default=128)
     parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--top-p", type=float, default=0.9)
@@ -133,15 +168,27 @@ def main():
 
     prompt = build_eval_prompt(args.instruction)
 
-    # Always use chat with two images
-    response = call_qwen_chat(
-        api_url=args.api_url,
-        prompt=prompt,
-        image_paths=[args.original, args.edited],
-        max_new_tokens=args.max_new_tokens,
-        temperature=args.temperature,
-        top_p=args.top_p,
-    )
+    # Choose between upload mode (direct file upload) or chat mode (file paths)
+    if args.upload:
+        print("Using direct image upload mode...")
+        response = call_qwen_upload(
+            api_url=args.api_url,
+            prompt=prompt,
+            image_paths=[args.original, args.edited],
+            max_new_tokens=args.max_new_tokens,
+            temperature=args.temperature,
+            top_p=args.top_p,
+        )
+    else:
+        print("Using chat mode with file paths...")
+        response = call_qwen_chat(
+            api_url=args.api_url,
+            prompt=prompt,
+            image_paths=[args.original, args.edited],
+            max_new_tokens=args.max_new_tokens,
+            temperature=args.temperature,
+            top_p=args.top_p,
+        )
 
     # Print the model's response as-is; the prompt instructs the required JSON-like format
     print(response)
