@@ -47,6 +47,7 @@ def build_eval_prompt(instruction: str) -> str:
     """Build the evaluation prompt for Qwen using the provided template."""
     return (
         "Human:\n"
+        "Answer strictly in English. Do not use any other language.\n"
         "You are a professional digital artist. You will have to evaluate the effectiveness of the AI-generated image(s) based on\n"
         "the given rules. You will have to give your output in this way (Keep your reasoning concise and short.): ”score” : [...],\n"
         "”reasoning” : ”...” and don’t output anything else.\n"
