@@ -85,7 +85,7 @@ def run_evaluation(user_question: str, initial_image_url_or_path: str, model, pr
     """
     # Downscale the initial image if it is too large to avoid CUDA launch errors
     current_image_path_for_code = _maybe_downscale_image(initial_image_url_or_path, max_side=1024)
-    
+    print('current_image_path_for_code', current_image_path_for_code)
     # Conversation history for the model
     # The first image is always the one provided by the user for the initial prompt context
     # Subsequent images are results of code execution
