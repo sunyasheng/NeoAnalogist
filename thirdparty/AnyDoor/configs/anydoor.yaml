@@ -80,6 +80,6 @@ model:
 
     cond_stage_config:
       target: ldm.modules.encoders.modules.FrozenDinoV2Encoder
-      weight: AnyDoor/path/dinov2_vitg14_pretrain.pth
+      weight: /Users/suny0a/Proj/ImageBrush/NeoAnalogist/pretrained/dinov2/dinov2_vitg14_pretrain.pth
     
 
