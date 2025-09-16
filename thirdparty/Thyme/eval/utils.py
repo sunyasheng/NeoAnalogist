@@ -57,11 +57,34 @@ def generate_prompt_final_qa(user_question, user_image_path):
 
 SPECIAL_STRING_LIST=["</code>", "</answer>"]
 
+def _maybe_downscale_image(image_path: str, max_side: int = 1024) -> str:
+    """
+    Downscale very large images to reduce VRAM usage. Returns a path to the
+    (possibly) resized image. If resizing is not needed, returns the original path.
+    """
+    try:
+        with Image.open(image_path) as img:
+            width, height = img.size
+            if max(width, height) <= max_side:
+                return image_path
+            ratio = max_side / max(width, height)
+            new_size = (int(width * ratio), int(height * ratio))
+            resized = img.convert("RGB").resize(new_size, Image.Resampling.LANCZOS)
+            import tempfile
+            tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+            resized.save(tmp.name, "JPEG", quality=95, optimize=True)
+            return tmp.name
+    except Exception:
+        # If anything fails, fall back to original path
+        return image_path
+
+
 def run_evaluation(user_question: str, initial_image_url_or_path: str, model, processor):
     """
     Runs the iterative evaluation for a given question and image.
     """
-    current_image_path_for_code = initial_image_url_or_path # This is the path sandbox code will use
+    # Downscale the initial image if it is too large to avoid CUDA launch errors
+    current_image_path_for_code = _maybe_downscale_image(initial_image_url_or_path, max_side=1024)
     
     # Conversation history for the model
     # The first image is always the one provided by the user for the initial prompt context
