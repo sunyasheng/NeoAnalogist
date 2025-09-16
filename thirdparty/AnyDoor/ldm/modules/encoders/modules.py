@@ -270,8 +270,8 @@ class FrozenOpenCLIPImageEncoder(AbstractEncoder):
     def encode(self, image):
         return self(image)
 
-repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
-sys.path.append(os.path.join(repo_root, 'thirdparty', 'AnyDoor', 'dinov2'))
+anydoor_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+sys.path.append(os.path.join(anydoor_root, 'dinov2'))
 import hubconf
 from omegaconf import OmegaConf
 # Resolve AnyDoor config with environment override first
@@ -281,8 +281,8 @@ if env_cfg and os.path.exists(env_cfg):
 else:
     # Try repo-relative fallbacks
     candidates = [
-        os.path.join(repo_root, 'thirdparty', 'AnyDoor', 'AnyDoor', 'configs', 'anydoor.yaml'),
-        os.path.join(repo_root, 'thirdparty', 'AnyDoor', 'configs', 'anydoor.yaml'),
+        os.path.join(anydoor_root, 'AnyDoor', 'configs', 'anydoor.yaml'),
+        os.path.join(anydoor_root, 'configs', 'anydoor.yaml'),
     ]
     _cfg_path = None
     for p in candidates:
