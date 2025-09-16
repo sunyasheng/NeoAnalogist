@@ -79,6 +79,15 @@ def _infer_with_cached_model(ref_image, ref_mask, tar_image, tar_mask, guidance_
     return gen_image
 
 
+@app.on_event("startup")
+async def _warmup_model():
+    try:
+        _load_anydoor_once()
+        print("[AnyDoor] Model loaded on startup.")
+    except Exception as e:
+        print(f"[AnyDoor] Startup load failed: {e}")
+
+
 def _read_image_rgb(file: UploadFile) -> np.ndarray:
     data = file.file.read()
     img_arr = np.frombuffer(data, np.uint8)
