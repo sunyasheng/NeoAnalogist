@@ -272,9 +272,9 @@ class FrozenOpenCLIPImageEncoder(AbstractEncoder):
         return self(image)
 
 _here = Path(__file__).resolve()
-# encoders -> modules -> ldm -> AnyDoor
-# AnyDoor root is parents[3]
-anydoor_root = _here.parents[3]
+# encoders -> modules -> ldm -> AnyDoor -> thirdparty -> NeoAnalogist
+# AnyDoor root is parents[4]
+anydoor_root = _here.parents[4]
 sys.path.append(str(anydoor_root / 'dinov2'))
 import hubconf
 from omegaconf import OmegaConf
