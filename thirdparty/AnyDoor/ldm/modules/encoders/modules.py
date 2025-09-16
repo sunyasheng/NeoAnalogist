@@ -10,6 +10,7 @@ from PIL import Image
 from open_clip.transform import image_transform
 import sys
 import os
+from pathlib import Path
 
 
 class LayerNormFp32(nn.LayerNorm):
@@ -270,8 +271,10 @@ class FrozenOpenCLIPImageEncoder(AbstractEncoder):
     def encode(self, image):
         return self(image)
 
-anydoor_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
-sys.path.append(os.path.join(anydoor_root, 'dinov2'))
+_here = Path(__file__).resolve()
+# encoders -> modules -> ldm -> AnyDoor
+anydoor_root = _here.parents[3]
+sys.path.append(str(anydoor_root / 'dinov2'))
 import hubconf
 from omegaconf import OmegaConf
 # Resolve AnyDoor config with environment override first
@@ -281,8 +284,8 @@ if env_cfg and os.path.exists(env_cfg):
 else:
     # Try repo-relative fallbacks
     candidates = [
-        os.path.join(anydoor_root, 'AnyDoor', 'configs', 'anydoor.yaml'),
-        os.path.join(anydoor_root, 'configs', 'anydoor.yaml'),
+        str(anydoor_root / 'AnyDoor' / 'configs' / 'anydoor.yaml'),
+        str(anydoor_root / 'configs' / 'anydoor.yaml'),
     ]
     _cfg_path = None
     for p in candidates:
