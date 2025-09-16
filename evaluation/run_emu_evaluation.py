@@ -43,7 +43,9 @@ class GoTAPIClient:
             "guidance_scale": kwargs.get("guidance_scale", 7.5),
             "image_guidance_scale": kwargs.get("image_guidance_scale", 1.0),
             "cond_image_guidance_scale": kwargs.get("cond_image_guidance_scale", 4.0),
-            "return_type": "json"
+            "return_type": "json",
+            "debug_save_cond": str(kwargs.get("debug_save_cond", False)).lower(),
+            "cond_save_dir": kwargs.get("cond_save_dir", ""),
         }
         
         try:
@@ -73,7 +75,9 @@ class GoTAPIClient:
             "guidance_scale": kwargs.get("guidance_scale", 7.5),
             "image_guidance_scale": kwargs.get("image_guidance_scale", 1.0),
             "cond_image_guidance_scale": kwargs.get("cond_image_guidance_scale", 4.0),
-            "return_type": "image"
+            "return_type": "image",
+            "debug_save_cond": str(kwargs.get("debug_save_cond", False)).lower(),
+            "cond_save_dir": kwargs.get("cond_save_dir", ""),
         }
 
         try:
@@ -107,7 +111,8 @@ def run_emu_evaluation(
     dataset_name: str = "validation",
     max_samples: int = 10,  # Limit for testing
     output_dir: str = "./emu_eval_results",
-    got_api_url: str = "http://localhost:8100"
+    got_api_url: str = "http://localhost:8100",
+    save_conditions: bool = True,
 ):
     """Run Emu-Edit dataset evaluation with GoT API"""
     
@@ -129,9 +134,11 @@ def run_emu_evaluation(
     src_images_dir = output_path / "src-images"
     edited_images_dir = output_path / "edited-images"
     gt_images_dir = output_path / "gt-images"
+    cond_images_root = output_path / "cond-images"
     src_images_dir.mkdir(parents=True, exist_ok=True)
     edited_images_dir.mkdir(parents=True, exist_ok=True)
     gt_images_dir.mkdir(parents=True, exist_ok=True)
+    cond_images_root.mkdir(parents=True, exist_ok=True)
     
     # Load dataset
     print(f"Loading {dataset_name} dataset...")
@@ -172,17 +179,22 @@ def run_emu_evaluation(
         # Determine output path first
         generated_image_path = edited_images_dir / f"edited_{sample['idx']}.png"
 
+        cond_dir = str(cond_images_root / str(sample['idx'])) if save_conditions else ""
         ok = got_client.generate_image_edit_stream(
             prompt=sample['instruction'],
             image_path=str(original_image_path),
-            output_path=str(generated_image_path)
+            output_path=str(generated_image_path),
+            debug_save_cond=save_conditions,
+            cond_save_dir=cond_dir,
         )
 
         if not ok:
             print("Stream mode failed, falling back to JSON mode...")
             got_result = got_client.generate_image_edit(
                 prompt=sample['instruction'],
-                image_path=str(original_image_path)
+                image_path=str(original_image_path),
+                debug_save_cond=save_conditions,
+                cond_save_dir=cond_dir,
             )
 
             print(f"GoT API response: {got_result}")

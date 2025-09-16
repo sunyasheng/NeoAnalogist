@@ -101,6 +101,8 @@ def got_generate(
     image_guidance_scale: float = 1.0,
     cond_image_guidance_scale: float = 4.0,
     cache_dir: Optional[str] = None,
+    save_condition_images: bool = False,
+    cond_save_dir: Optional[str] = None,
 ) -> Dict[str, Any]:
     model, _ = _load_got_once()
 
@@ -113,6 +115,12 @@ def got_generate(
         pil_img = Image.open(image_path).convert("RGB")
 
     with torch.no_grad():
+        cond_dir = None
+        if save_condition_images:
+            if cond_save_dir is not None:
+                cond_dir = cond_save_dir
+            elif cache_dir is not None:
+                cond_dir = os.path.join(cache_dir, "cond_images")
         out = model.generate(
             text_input=prompt,
             image=pil_img,
@@ -124,6 +132,7 @@ def got_generate(
             height=height,
             width=width,
             prompt_type=prompt_type,
+            cond_save_dir=cond_dir,
         )
 
     return out

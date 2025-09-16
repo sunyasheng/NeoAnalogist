@@ -59,7 +59,9 @@ async def got_generate_api(
     image_guidance_scale: float = Form(1.0),
     cond_image_guidance_scale: float = Form(4.0),
     image: Optional[UploadFile] = File(None),
-    return_type: str = Form("image")  # image (default) | json
+    return_type: str = Form("image"),  # image (default) | json
+    debug_save_cond: bool = Form(False),
+    cond_save_dir: str = Form(""),
 ):
     temp_cache_dir = os.path.join("./tmp/got_cache", f"task_{uuid.uuid4()}")
     os.makedirs(temp_cache_dir, exist_ok=True)
@@ -81,6 +83,8 @@ async def got_generate_api(
         else:
             temp_image_path = None
         
+        # If user provides a condition save dir, prefer it
+        custom_cond_dir = cond_save_dir if cond_save_dir else None
         result = got_generate(
             prompt=prompt,
             mode=mode,
@@ -93,6 +97,8 @@ async def got_generate_api(
             image_guidance_scale=image_guidance_scale,
             cond_image_guidance_scale=cond_image_guidance_scale,
             cache_dir=temp_cache_dir,
+            save_condition_images=debug_save_cond,
+            cond_save_dir=custom_cond_dir,
         )
 
         # Stream or JSON based on return_type

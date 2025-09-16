@@ -86,6 +86,7 @@ class GenCot(nn.Module):
                  random_seed=42,
                  got_input=None,
                  only_return_got=False,
+                 cond_save_dir=None,
                  **generate_kwargs
                  ):
         """
@@ -272,6 +273,15 @@ class GenCot(nn.Module):
                     draw.rectangle(((position[0][0] / 1000 * width, position[0][1] / 1000 * height),
                                     (position[1][0] / 1000 * width, position[1][1] / 1000 * height)), fill=color)
                     del draw
+
+                # Optionally save condition images for debugging/inspection
+                if cond_save_dir is not None:
+                    try:
+                        os.makedirs(cond_save_dir, exist_ok=True)
+                        for idx_save, img_save in enumerate(cond_images):
+                            img_save.save(os.path.join(cond_save_dir, f"cond_{idx_save}.png"))
+                    except Exception:
+                        pass
 
                 cond_images_tensor = []
                 for c_image in cond_images:
