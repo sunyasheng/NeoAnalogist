@@ -7,6 +7,9 @@ import os
 import cv2
 import numpy as np
 
+import os as _os
+_os.environ.setdefault("ANYDOOR_CFG", "/home/suny0a/Proj/ImageBrush/NeoAnalogist/thirdparty/AnyDoor/configs/anydoor.yaml")
+
 import einops
 import torch
 import random
