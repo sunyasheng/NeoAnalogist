@@ -9,6 +9,7 @@ from ldm.util import default, count_params
 from PIL import Image
 from open_clip.transform import image_transform
 import sys
+import os
 
 
 class LayerNormFp32(nn.LayerNorm):
@@ -269,12 +270,28 @@ class FrozenOpenCLIPImageEncoder(AbstractEncoder):
     def encode(self, image):
         return self(image)
 
-sys.path.append("./dinov2")
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+sys.path.append(os.path.join(repo_root, 'thirdparty', 'AnyDoor', 'dinov2'))
 import hubconf
 from omegaconf import OmegaConf
-# config_path = './AnyDoor/configs/anydoor.yaml'
-config_path = './configs/anydoor.yaml'
-config = OmegaConf.load(config_path)
+# Resolve AnyDoor config with environment override first
+env_cfg = os.environ.get('ANYDOOR_CFG')
+if env_cfg and os.path.exists(env_cfg):
+    _cfg_path = env_cfg
+else:
+    # Try repo-relative fallbacks
+    candidates = [
+        os.path.join(repo_root, 'thirdparty', 'AnyDoor', 'AnyDoor', 'configs', 'anydoor.yaml'),
+        os.path.join(repo_root, 'thirdparty', 'AnyDoor', 'configs', 'anydoor.yaml'),
+    ]
+    _cfg_path = None
+    for p in candidates:
+        if os.path.exists(p):
+            _cfg_path = p
+            break
+if _cfg_path is None:
+    raise FileNotFoundError("Cannot find anydoor.yaml. Set ANYDOOR_CFG or place it under thirdparty/AnyDoor/(AnyDoor/)?configs.")
+config = OmegaConf.load(_cfg_path)
 DINOv2_weight_path = config.model.params.cond_stage_config.weight
 
 class FrozenDinoV2Encoder(AbstractEncoder):
