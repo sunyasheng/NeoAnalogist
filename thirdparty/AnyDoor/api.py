@@ -30,8 +30,21 @@ def _load_anydoor_once():
     if _MODEL is not None:
         return _MODEL, _SAMPLER
     disable_verbosity()
-    # Load config for pretrained path
-    cfg = OmegaConf.load('./AnyDoor/configs/inference.yaml')
+    # Load config for pretrained path (robust path resolution)
+    import os
+    repo_root = os.path.abspath(os.path.dirname(__file__))
+    candidates = [
+        os.path.join(repo_root, 'AnyDoor', 'configs', 'inference.yaml'),
+        os.path.join(repo_root, 'configs', 'inference.yaml'),
+    ]
+    cfg_path = None
+    for p in candidates:
+        if os.path.exists(p):
+            cfg_path = p
+            break
+    if cfg_path is None:
+        raise FileNotFoundError(f"inference.yaml not found. Tried: {candidates}")
+    cfg = OmegaConf.load(cfg_path)
     model_ckpt = cfg.pretrained_model
     model_config = cfg.config_file
     model = create_model(model_config).cpu()
