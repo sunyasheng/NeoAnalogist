@@ -1003,10 +1003,21 @@ def main():
                 print("Error: --grounding-sam-image-path and --grounding-sam-text-prompt are required")
                 return
 
-            # Only pass required fields to avoid schema mismatch
+            # For output_dir, pass HOST PATH (absolute) so external FastAPI on host can write there
+            output_dir_host = None
+            if args.grounding_sam_output_dir:
+                od = args.grounding_sam_output_dir
+                if os.path.isabs(od):
+                    output_dir_host = od
+                else:
+                    output_dir_host = os.path.join(os.getcwd(), od)
+
+            # Build action including return_type and output_dir (host path)
             action = GroundingSAMAction(
                 image_path=img_path,
                 text_prompt=args.grounding_sam_text_prompt,
+                return_type="json",
+                output_dir=output_dir_host,
             )
             # Execute
             result = runtime.grounding_sam(action)
