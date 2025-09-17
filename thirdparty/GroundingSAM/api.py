@@ -38,8 +38,9 @@ _STARTUP_ERROR: Optional[str] = None
 # Provide sensible defaults for env vars (can be overridden by user env)
 _HERE = os.path.abspath(os.path.dirname(__file__))
 _REPO_ROOT = os.path.abspath(os.path.join(_HERE, "..", ".."))
-_DEFAULT_SAM = os.path.join(_REPO_ROOT, "weights", "sam_vit_h_4b8939.pth")
-_DEFAULT_GDINO_CKPT = os.path.join(_REPO_ROOT, "weights", "groundingdino_swint_ogc.pth")
+_DEFAULT_PRETRAINED_DIR = "/home/suny0a/Proj/ImageBrush/NeoAnalogist/pretrained/GroundingSAM"
+_DEFAULT_SAM = os.path.join(_DEFAULT_PRETRAINED_DIR, "sam_vit_h_4b8939.pth")
+_DEFAULT_GDINO_CKPT = os.path.join(_DEFAULT_PRETRAINED_DIR, "groundingdino_swint_ogc.pth")
 _DEFAULT_GDINO_CFG = os.path.join(
     _REPO_ROOT,
     "thirdparty",
