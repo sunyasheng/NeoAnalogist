@@ -18,10 +18,10 @@ base_model = GroundedSAM2(
 )
 
 # run inference on a single image
-results = base_model.predict("logistics.jpeg")
+results = base_model.predict("image.png")
 
 plot(
-    image=cv2.imread("logistics.jpeg"),
+    image=cv2.imread("image.png"),
     classes=base_model.ontology.classes(),
     detections=results
 )
