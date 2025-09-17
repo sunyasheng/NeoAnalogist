@@ -30,6 +30,11 @@ from PIL import Image
 
 app = FastAPI(title="GroundingSAM API", description="Text-prompted segmentation (GroundingDINO + SAM)", version="1.0.0")
 
+# Global caches
+_GROUNDER = None
+_SAM_PREDICTOR = None
+_STARTUP_ERROR: Optional[str] = None
+
 
 def _ensure_thirdparty_on_path() -> None:
     here = os.path.abspath(os.path.dirname(__file__))
@@ -39,27 +44,68 @@ def _ensure_thirdparty_on_path() -> None:
         sys.path.append(gdino_dir)
 
 
-def _try_load_models():
-    """Best-effort import GroundingDINO + SAM. Returns (pipeline, error_str)."""
+def _try_import_modules():
+    """Import GroundingDINO + SAM modules. Returns (Grounder, sam_model_registry, SamPredictor) or (None, err)."""
     _ensure_thirdparty_on_path()
     try:
-        # Prefer huggingface pipeline if available; else try local modules
-        # We keep imports lazy to fail fast with a clean message
-        from groundingdino.util.inference import Model as Grounder
+        from groundingdino.util.inference import Model as Grounder  # type: ignore
         from segment_anything import sam_model_registry, SamPredictor  # type: ignore
+        return (Grounder, sam_model_registry, SamPredictor), None
     except Exception as e:  # noqa: BLE001
         return None, (
-            "GroundingDINO/SAM not available in environment. Install and ensure weights are present. "
-            "Hint: pip install groundingdino segment-anything; or add your local GroundingDINO to PYTHONPATH. "
-            f"Original import error: {e}"
+            "GroundingDINO/SAM not available. Install and ensure weights are present. "
+            "Hint: pip install groundingdino segment-anything; or add your GroundingDINO to PYTHONPATH. "
+            f"Import error: {e}"
         )
-    return (Grounder, sam_model_registry, SamPredictor), None
+
+
+def _load_once():
+    global _GROUNDER, _SAM_PREDICTOR, _STARTUP_ERROR
+    if _GROUNDER is not None and _SAM_PREDICTOR is not None:
+        return
+    modules, err = _try_import_modules()
+    if err is not None:
+        _STARTUP_ERROR = err
+        return
+    Grounder, sam_model_registry, SamPredictor = modules  # type: ignore[misc]
+
+    try:
+        # Instantiate GroundingDINO wrapper (uses its own default cfg/weights or env-configured)
+        grounder = Grounder()
+    except Exception as e:  # noqa: BLE001
+        _STARTUP_ERROR = f"Failed to initialize GroundingDINO: {e}"
+        return
+
+    # SAM settings via env
+    sam_variant = os.environ.get("SAM_MODEL_TYPE", "vit_h")
+    sam_ckpt = os.environ.get("SAM_CHECKPOINT", "")
+    if not sam_ckpt:
+        _STARTUP_ERROR = (
+            "SAM checkpoint not configured. Set SAM_CHECKPOINT=/path/to/sam_vit_h_4b8939.pth "
+            "and optionally SAM_MODEL_TYPE (e.g., vit_h)."
+        )
+        return
+
+    try:
+        sam = sam_model_registry[sam_variant](checkpoint=sam_ckpt)  # type: ignore[index]
+        predictor = SamPredictor(sam)
+    except Exception as e:  # noqa: BLE001
+        _STARTUP_ERROR = f"Failed to initialize SAM ({sam_variant}): {e}"
+        return
+
+    _GROUNDER = grounder
+    _SAM_PREDICTOR = predictor
 
 
 def _load_image_to_numpy(upload: UploadFile) -> np.ndarray:
     data = upload.file.read()
     img = Image.open(io.BytesIO(data)).convert("RGB")
     return np.array(img)
+
+
+@app.on_event("startup")
+async def _warmup_models():
+    _load_once()
 
 
 @app.post("/grounding-sam/segment")
@@ -70,40 +116,30 @@ async def grounding_sam_segment(
     text_threshold: float = Form(0.25),
     output_dir: Optional[str] = Form(None),
 ):
-    # Load models (lazy)
-    models, err = _try_load_models()
-    if err is not None:
-        return JSONResponse(status_code=501, content={"success": False, "error": err})
-
-    Grounder, sam_model_registry, SamPredictor = models  # type: ignore[misc]
+    # Ensure models are loaded once
+    if _STARTUP_ERROR is not None:
+        return JSONResponse(status_code=501, content={"success": False, "error": _STARTUP_ERROR})
+    if _GROUNDER is None or _SAM_PREDICTOR is None:
+        _load_once()
+    if _STARTUP_ERROR is not None:
+        return JSONResponse(status_code=501, content={"success": False, "error": _STARTUP_ERROR})
 
     try:
-        # NOTE: Here we avoid hardcoding weight paths; your GroundingDINO module should be configured
-        # the same way as your existing thirdparty/GroundingDINO. If not, provide env vars or defaults.
+        # Inference
         image_np = _load_image_to_numpy(image)
-
-        # Run GroundingDINO to get boxes per text prompt
-        # Minimal inference util; expects Grounder to offer a high-level API.
-        # If your local GroundingDINO differs, adapt here.
-        grounder = Grounder()
-        boxes, labels, scores = grounder.predict(image_np, text_prompt, box_threshold=box_threshold, text_threshold=text_threshold)
+        boxes, labels, scores = _GROUNDER.predict(  # type: ignore[assignment]
+            image_np,
+            text_prompt,
+            box_threshold=box_threshold,
+            text_threshold=text_threshold,
+        )
 
         # If no boxes, return empty result
         if boxes is None or len(boxes) == 0:
             return {"success": True, "num_instances": 0, "mask_paths": []}
 
-        # Load SAM (choose a default variant via env or fall back to vit_h)
-        sam_variant = os.environ.get("SAM_MODEL_TYPE", "vit_h")
-        sam_ckpt = os.environ.get("SAM_CHECKPOINT", "")
-        if not sam_ckpt:
-            return JSONResponse(status_code=501, content={
-                "success": False,
-                "error": "SAM checkpoint not configured. Set SAM_CHECKPOINT=/path/to/sam_vit_h_4b8939.pth and SAM_MODEL_TYPE (e.g., vit_h)."
-            })
-
-        sam = sam_model_registry[sam_variant](checkpoint=sam_ckpt)
-        predictor = SamPredictor(sam)
-        predictor.set_image(image_np)
+        predictor = _SAM_PREDICTOR
+        predictor.set_image(image_np)  # type: ignore[union-attr]
 
         mask_paths: List[str] = []
         h, w = image_np.shape[:2]
