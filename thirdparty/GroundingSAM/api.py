@@ -25,6 +25,7 @@ from typing import Optional, List
 import io
 import os
 import sys
+import traceback
 import numpy as np
 from PIL import Image
 import torch
@@ -194,7 +195,12 @@ async def grounding_sam_segment(
         num = len(getattr(results, "masks", []) or [])
         return {"success": True, "num_instances": num, "mask_paths": mask_paths}
     except Exception as e:  # noqa: BLE001
-        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+        tb = traceback.format_exc()
+        print(tb, file=sys.stderr)
+        content = {"success": False, "error": str(e)}
+        if os.environ.get("GSAM_DEBUG") == "1":
+            content["traceback"] = tb
+        return JSONResponse(status_code=500, content=content)
 
 
 if __name__ == "__main__":
