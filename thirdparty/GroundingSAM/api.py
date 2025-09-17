@@ -114,22 +114,25 @@ async def grounding_sam_segment(
             return StreamingResponse(buf, media_type="image/png")
 
         # JSON: save all masks to temp cache and return paths
-        mask_paths: List[str] = []
+        cache_mask_paths: List[str] = []
         for i, m in enumerate(masks):
             arr = (m.astype("uint8") * 255)
             out_path = os.path.join(temp_cache_dir, f"mask_{i}.png")
             Image.fromarray(arr).save(out_path)
-            mask_paths.append(out_path)
+            cache_mask_paths.append(out_path)
 
         # Also save to user-provided output_dir if specified
+        output_mask_paths: List[str] = []
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
             for i, m in enumerate(masks):
                 arr = (m.astype("uint8") * 255)
                 out_path = os.path.join(output_dir, f"mask_{i}.png")
                 Image.fromarray(arr).save(out_path)
-
-        return {"success": True, "num_instances": num, "mask_paths": mask_paths}
+                output_mask_paths.append(out_path)
+        # Prefer returning user-specified output paths if provided; otherwise return temp cache paths
+        response_paths = output_mask_paths if output_mask_paths else cache_mask_paths
+        return {"success": True, "num_instances": num, "mask_paths": response_paths}
     except Exception as e:  # noqa: BLE001
         tb = traceback.format_exc()
         print(tb, file=sys.stderr)
