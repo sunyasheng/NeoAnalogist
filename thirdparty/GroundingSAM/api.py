@@ -191,7 +191,31 @@ async def grounding_sam_segment(
                 mask_paths.append(out_path)
 
         num = len(getattr(results, "masks", []) or [])
-        return {"success": True, "num_instances": num, "mask_paths": mask_paths}
+
+        # Optional debug payload to understand zero-detection cases
+        payload = {"success": True, "num_instances": num, "mask_paths": mask_paths}
+        if os.environ.get("GSAM_DEBUG") == "1":
+            try:
+                debug: dict = {}
+                debug["available_attrs"] = sorted([a for a in dir(results) if not a.startswith("_")])
+                # Common autodistill fields
+                for key in ("boxes", "xyxy", "class_id", "confidence", "scores", "labels", "text"):  # best-effort
+                    val = getattr(results, key, None)
+                    if val is not None:
+                        # convert to lightweight lists if possible
+                        try:
+                            if hasattr(val, "tolist"):
+                                val = val.tolist()
+                            elif isinstance(val, (list, tuple)):
+                                val = list(val)
+                        except Exception:  # noqa: BLE001
+                            pass
+                        debug[key] = val
+                payload["debug"] = debug
+            except Exception as _:
+                pass
+
+        return payload
     except Exception as e:  # noqa: BLE001
         tb = traceback.format_exc()
         print(tb, file=sys.stderr)
