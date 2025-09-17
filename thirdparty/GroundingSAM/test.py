@@ -13,7 +13,7 @@ base_model = GroundedSAM2(
     ontology=CaptionOntology(
         {
             "person": "person",
-            "shipping container": "shipping container",
+            # "shipping container": "shipping container",
         }
     )
 )
