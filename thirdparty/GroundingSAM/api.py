@@ -179,6 +179,30 @@ async def grounding_sam_segment(
             Image.fromarray(image_np).save(tmp.name)
             results = model.predict(tmp.name)
 
+        # If SAM failed to produce masks, optionally fall back to box->rect masks
+        masks_from_boxes = False
+        if not getattr(results, "masks", None):
+            xyxy = getattr(results, "xyxy", None)
+            if xyxy is not None and len(xyxy) > 0 and os.environ.get("GSAM_BOX_AS_MASK", "1") == "1":
+                H, W = int(image_np.shape[0]), int(image_np.shape[1])
+                rect_masks: list[np.ndarray] = []
+                for box in xyxy:
+                    try:
+                        x1, y1, x2, y2 = map(int, box)
+                        x1 = max(0, min(W - 1, x1))
+                        x2 = max(0, min(W - 1, x2))
+                        y1 = max(0, min(H - 1, y1))
+                        y2 = max(0, min(H - 1, y2))
+                        if x2 > x1 and y2 > y1:
+                            m = np.zeros((H, W), dtype=np.uint8)
+                            m[y1:y2, x1:x2] = 1
+                            rect_masks.append(m)
+                    except Exception:
+                        continue
+                if rect_masks:
+                    results.masks = rect_masks  # type: ignore[attr-defined]
+                    masks_from_boxes = True
+
         # Save masks
         mask_paths: List[str] = []
         if output_dir:
@@ -211,6 +235,7 @@ async def grounding_sam_segment(
                         except Exception:  # noqa: BLE001
                             pass
                         debug[key] = val
+                debug["masks_from_boxes"] = masks_from_boxes
                 payload["debug"] = debug
             except Exception as _:
                 pass
