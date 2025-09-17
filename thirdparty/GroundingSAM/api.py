@@ -115,16 +115,14 @@ def _load_once():
         labels = ["object"]
     ontology = CaptionOntology({label: label for label in labels})
 
-    device = "cuda" if (torch.cuda.is_available() and os.environ.get("CUDA_VISIBLE_DEVICES", "") != "-1") else "cpu"
     try:
         _MODEL = GroundedSAM(
             ontology=ontology,
             box_threshold=float(os.environ.get("GSAM_BOX_THRESHOLD", "0.3")),
             text_threshold=float(os.environ.get("GSAM_TEXT_THRESHOLD", "0.25")),
-            device=device,
         )
         _MODEL_LABELS = set(labels)
-        print(f"[GroundingSAM] Base model loaded on startup. labels={sorted(_MODEL_LABELS)} device={device}")
+        print(f"[GroundingSAM] Base model loaded on startup. labels={sorted(_MODEL_LABELS)}")
     except Exception as e:  # noqa: BLE001
         _STARTUP_ERROR = f"Failed to initialize GroundedSAM at startup: {e}"
         print(f"[GroundingSAM] {_STARTUP_ERROR}")
