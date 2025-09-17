@@ -4,8 +4,6 @@ GroundingSAM API: Text-prompted segmentation via GroundingDINO + SAM.
 POST /grounding-sam/segment
   - image: UploadFile (required)
   - text_prompt: str (required, e.g., "cat, dog, person")
-  - box_threshold: float (optional, default 0.3)
-  - text_threshold: float (optional, default 0.25)
   - output_dir: str (optional; if set, saves masks as PNGs)
   - return_type: str (optional, default "image"; "image" | "json")
 
@@ -61,8 +59,6 @@ async def _warmup_models():
 async def grounding_sam_segment(
     image: UploadFile = File(...),
     text_prompt: str = Form(...),
-    box_threshold: float = Form(0.3),
-    text_threshold: float = Form(0.25),
     output_dir: Optional[str] = Form(None),
     return_type: str = Form("image"),  # image (default) | json
 ):
@@ -87,7 +83,7 @@ async def grounding_sam_segment(
         image_np = _load_image_to_numpy(image)
         with tempfile.NamedTemporaryFile(suffix=".png", delete=True) as tmp:
             Image.fromarray(image_np).save(tmp.name)
-            results = model.predict(tmp.name, box_threshold=box_threshold, text_threshold=text_threshold)
+            results = model.predict(tmp.name)
 
         masks = getattr(results, "masks", []) or []
         num = len(masks)
