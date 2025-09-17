@@ -80,8 +80,8 @@ from core.runtime.tasks.repo_edit import RepoEditTask
 from core.runtime.tasks.pdf_query_task import PDFQueryTool
 from core.events.observation.repo import RepoEditObservation
 from core.runtime.plugins.jupyter import JupyterPlugin
-from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction
-from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction
+from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation, GroundingSAMObservation
 from core.events.observation.repo import GoTEditObservation, QwenAPIObservation, AnyDoorEditObservation
 from core.runtime.tasks.image_entity_extract import ImageEntityExtractTask
 from core.runtime.tasks.got_edit import GoTEditClient
@@ -1204,6 +1204,55 @@ class ActionExecutor:
         except Exception as e:
             logger.error(f"Error in anydoor_edit: {str(e)}")
             return AnyDoorEditObservation(success=False, error_message=f"Failed to run AnyDoor edit: {str(e)}")
+
+    async def grounding_sam(self, action: GroundingSAMAction) -> GroundingSAMObservation:
+        """Call GroundingSAM API from inside container using an HTTP client.
+        Expects container-absolute image path.
+        """
+        try:
+            import requests
+            base_url = os.environ.get("GROUNDING_SAM_BASE_URL", "http://10.64.74.69:8501")
+            url = f"{base_url.rstrip('/')}/grounding-sam/segment"
+
+            if not action.image_path or not action.text_prompt:
+                return GroundingSAMObservation(success=False, error_message="image_path and text_prompt are required")
+
+            files = {
+                "image": open(action.image_path, "rb"),
+            }
+            data = {
+                "text_prompt": action.text_prompt,
+                "return_type": "json",
+            }
+            if action.output_dir:
+                data["output_dir"] = action.output_dir
+
+            try:
+                resp = requests.post(url, files=files, data=data, timeout=600)
+                resp.raise_for_status()
+            finally:
+                try:
+                    files["image"].close()
+                except Exception:
+                    pass
+
+            js = resp.json()
+            if js.get("success"):
+                return GroundingSAMObservation(
+                    content="GroundingSAM segmentation completed",
+                    num_instances=js.get("num_instances", 0),
+                    mask_paths=js.get("mask_paths", []),
+                    success=True,
+                )
+            else:
+                return GroundingSAMObservation(
+                    content="GroundingSAM segmentation failed",
+                    success=False,
+                    error_message=js.get("error", "Unknown error"),
+                )
+        except Exception as e:
+            logger.error(f"Error in grounding_sam: {str(e)}")
+            return GroundingSAMObservation(success=False, error_message=f"Failed to run GroundingSAM: {str(e)}")
 
     async def image_edit_judge(self, action: ImageEditJudgeAction) -> ImageEditJudgeObservation:
         """Judge image editing quality using AnyBench metrics.

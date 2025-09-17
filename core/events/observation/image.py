@@ -46,3 +46,19 @@ class ImageEditJudgeObservation(Observation):
             self.suggestions = []
 
 
+@dataclass
+class GroundingSAMObservation(Observation):
+    """Observation for GroundingSAM segmentation operation."""
+
+    content: str = ""
+    num_instances: int = 0
+    mask_paths: List[str] = None
+    success: bool = False
+    error_message: str = ""
+    observation: str = "GROUNDING_SAM"
+
+    def __post_init__(self):
+        if self.mask_paths is None:
+            self.mask_paths = []
+
+

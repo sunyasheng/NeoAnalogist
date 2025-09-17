@@ -30,6 +30,7 @@ from core.utils.http_session import HttpSession
 from core.utils.types.exceptions import (AgentRuntimeError,
                                          AgentRuntimeTimeoutError)
 from core.events.action.image import ImageEntityExtractAction
+from core.events.action.image import GroundingSAMAction
 
 
 class ActionExecutionClient:
@@ -102,6 +103,12 @@ class ActionExecutionClient:
     def image_entity_extract(self, action: "ImageEntityExtractAction") -> Observation:
         if action.timeout is None:
             action.set_hard_timeout(180, blocking=False)
+        return self.send_action_for_execution(action)
+
+    # ---- GroundingSAM passthrough (server will call external FastAPI) ----
+    def grounding_sam(self, action: "GroundingSAMAction") -> Observation:
+        if action.timeout is None:
+            action.set_hard_timeout(600, blocking=False)
         return self.send_action_for_execution(action)
 
     def send_action_for_execution(self, action: Action) -> Observation:

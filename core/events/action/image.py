@@ -112,6 +112,27 @@ class AnyDoorEditAction(Action):
         )
 
 @dataclass
+class GroundingSAMAction(Action):
+    """Text-prompted segmentation using GroundingSAM service.
+    
+    All paths should be absolute container paths when called inside DockerRuntime server.
+    """
+
+    image_path: str = ""
+    text_prompt: str = ""
+    # Optional knobs (currently handled on server side / API defaults)
+    return_type: str = "json"  # image | json (server defaults to image, we prefer json in runtime)
+    output_dir: Optional[str] = None
+    thought: str = ""
+
+    action: str = "grounding_sam"
+    runnable: ClassVar[bool] = True
+
+    @property
+    def message(self) -> str:
+        return f"GroundingSAM segment: {self.text_prompt} on {self.image_path}"
+
+@dataclass
 class ImageEditJudgeAction(Action):
     """Judge image editing quality using AnyBench metrics.
     

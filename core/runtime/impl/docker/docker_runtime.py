@@ -30,6 +30,7 @@ from core.events.observation.repo import GoTEditObservation, QwenAPIObservation
 from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction
 from core.events.observation.image import ImageEditJudgeObservation
 from core.events.action.image import AnyDoorEditAction
+from core.events.action.image import GroundingSAMAction
 
 # Import PDF query functionality
 from core.events.action import PDFQueryAction
@@ -193,6 +194,10 @@ class DockerRuntime(ActionExecutionClient):
 
     def anydoor_edit(self, action: AnyDoorEditAction):
         """Call AnyDoor edit via the container server (client-server pattern)."""
+        return self.send_action_for_execution(action)
+
+    def grounding_sam(self, action: GroundingSAMAction):
+        """Call GroundingSAM segmentation via the container server (client-server pattern)."""
         return self.send_action_for_execution(action)
 
     # ===== AnyDoor API helper (calls host AnyDoor FastAPI from inside container) =====
@@ -732,6 +737,11 @@ def main():
     parser.add_argument("--qwen-api-max-tokens", type=int, default=128, help="Maximum tokens for Qwen API", metavar='TOKENS')
     parser.add_argument("--qwen-api-temperature", type=float, default=0.7, help="Temperature for Qwen API", metavar='TEMP')
     parser.add_argument("--qwen-api-top-p", type=float, default=0.9, help="Top-p for Qwen API", metavar='TOP_P')
+    # GroundingSAM (text-prompted segmentation)
+    parser.add_argument("--grounding-sam-image-path", type=str, help="Container path to image for GroundingSAM segmentation", metavar='IMG_PATH')
+    parser.add_argument("--grounding-sam-text-prompt", type=str, help="Text prompt (comma-separated labels) for GroundingSAM", metavar='TEXT')
+    parser.add_argument("--grounding-sam-return-type", type=str, choices=["image", "json"], default="image", help="Return type: image (PNG stream) or json (paths)", metavar='RET')
+    parser.add_argument("--grounding-sam-output-dir", type=str, help="Container path to save masks when using return_type=json", metavar='OUT_DIR')
     # Image Edit Judge (evaluate image editing quality)
     parser.add_argument("--image-edit-judge-original-path", type=str, help="Original image path for edit judge evaluation", metavar='ORIGINAL_PATH')
     parser.add_argument("--image-edit-judge-edited-path", type=str, help="Edited image path for edit judge evaluation", metavar='EDITED_PATH')
@@ -975,6 +985,36 @@ def main():
                 'success': getattr(result, 'success', False),
                 'error': getattr(result, 'error_message', ''),
                 'response': getattr(result, 'response', ''),
+                'content': getattr(result, 'content', ''),
+            })
+        elif args.grounding_sam_image_path or args.grounding_sam_text_prompt:
+            # Prepare container path mapping
+            def to_container_path(p: str) -> str:
+                if not p:
+                    return p
+                if p.startswith('/app_sci/'):
+                    return p
+                if not p.startswith('/'):
+                    return os.path.join('/app_sci', p)
+                return p
+
+            img_path = to_container_path(args.grounding_sam_image_path or "")
+            if not img_path or not args.grounding_sam_text_prompt:
+                print("Error: --grounding-sam-image-path and --grounding-sam-text-prompt are required")
+                return
+
+            # Only pass required fields to avoid schema mismatch
+            action = GroundingSAMAction(
+                image_path=img_path,
+                text_prompt=args.grounding_sam_text_prompt,
+            )
+            # Execute
+            result = runtime.grounding_sam(action)
+            print({
+                'success': getattr(result, 'success', False),
+                'error': getattr(result, 'error_message', ''),
+                'num_instances': getattr(result, 'num_instances', None),
+                'mask_paths': getattr(result, 'mask_paths', []),
                 'content': getattr(result, 'content', ''),
             })
         elif args.task_graph:
