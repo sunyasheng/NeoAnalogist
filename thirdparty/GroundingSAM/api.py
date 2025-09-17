@@ -33,8 +33,10 @@ from autodistill.detection import CaptionOntology
 
 app = FastAPI(title="GroundingSAM API", description="Text-prompted segmentation (GroundingDINO + SAM)", version="1.0.0")
 
-# Global caches (autodistill version creates model per prompt; keep only startup error)
+# Global caches
 _STARTUP_ERROR: Optional[str] = None
+_MODEL: Optional[GroundedSAM] = None
+_MODEL_LABELS: set[str] = set()
 
 # Provide sensible defaults for env vars (can be overridden by user env)
 _HERE = os.path.abspath(os.path.dirname(__file__))
@@ -76,7 +78,7 @@ def _try_import_modules():
 
 
 def _load_once():
-    global _STARTUP_ERROR
+    global _STARTUP_ERROR, _MODEL, _MODEL_LABELS
     # Validate required files first for clearer errors
     missing: list[str] = []
     sam_ckpt_env = os.environ.get("SAM_CHECKPOINT", "")
@@ -103,7 +105,30 @@ def _load_once():
         print(f"[GroundingSAM] Import error: {_STARTUP_ERROR}")
         return
 
-    print("[GroundingSAM] autodistill-grounded-sam imports ok. Will build model per request.")
+    # Build a base model at startup to load checkpoints into memory
+    default_labels_env = os.environ.get(
+        "GSAM_DEFAULT_LABELS",
+        "person,dog,cat,car,bus,backpack,bottle,chair,table,tv,monitor,phone,laptop"
+    )
+    labels = [t.strip() for t in default_labels_env.split(",") if t.strip()]
+    if not labels:
+        labels = ["object"]
+    ontology = CaptionOntology({label: label for label in labels})
+
+    device = "cuda" if (torch.cuda.is_available() and os.environ.get("CUDA_VISIBLE_DEVICES", "") != "-1") else "cpu"
+    try:
+        _MODEL = GroundedSAM(
+            ontology=ontology,
+            box_threshold=float(os.environ.get("GSAM_BOX_THRESHOLD", "0.3")),
+            text_threshold=float(os.environ.get("GSAM_TEXT_THRESHOLD", "0.25")),
+            device=device,
+        )
+        _MODEL_LABELS = set(labels)
+        print(f"[GroundingSAM] Base model loaded on startup. labels={sorted(_MODEL_LABELS)} device={device}")
+    except Exception as e:  # noqa: BLE001
+        _STARTUP_ERROR = f"Failed to initialize GroundedSAM at startup: {e}"
+        print(f"[GroundingSAM] {_STARTUP_ERROR}")
+        return
 
 
 def _load_image_to_numpy(upload: UploadFile) -> np.ndarray:
