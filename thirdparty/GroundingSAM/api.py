@@ -111,8 +111,14 @@ def _load_once():
     Grounder, sam_model_registry, SamPredictor = modules  # type: ignore[misc]
 
     try:
-        # Instantiate GroundingDINO wrapper (uses its own default cfg/weights or env-configured)
-        grounder = Grounder()
+        # Instantiate GroundingDINO with explicit cfg/ckpt from env
+        device = "cuda" if (os.environ.get("FORCE_CUDA", "1") != "0" and \
+                            os.environ.get("CUDA_VISIBLE_DEVICES", "") != "-1") else "cpu"
+        grounder = Grounder(
+            model_config_path=os.environ.get("GROUNDING_DINO_CONFIG"),
+            model_checkpoint_path=os.environ.get("GROUNDING_DINO_CHECKPOINT"),
+            device=device,
+        )
     except Exception as e:  # noqa: BLE001
         _STARTUP_ERROR = f"Failed to initialize GroundingDINO: {e}"
         print(f"[GroundingSAM] {_STARTUP_ERROR}")
