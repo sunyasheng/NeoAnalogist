@@ -39,9 +39,9 @@ app = FastAPI(title="Inpaint-Anything API", version="1.0.0")
 
 # Environment variables with defaults
 SAM_MODEL_TYPE = os.environ.get("SAM_MODEL_TYPE", "vit_h")
-SAM_CHECKPOINT = os.environ.get("SAM_CHECKPOINT", "./pretrained_models/sam_vit_h_4b8939.pth")
+SAM_CHECKPOINT = os.environ.get("SAM_CHECKPOINT", "/home/suny0a/Proj/ImageBrush/NeoAnalogist/pretrained/InpaintAnything/sam_vit_h_4b8939.pth")
 LAMA_CONFIG = os.environ.get("LAMA_CONFIG", "./lama/configs/prediction/default.yaml")
-LAMA_CHECKPOINT = os.environ.get("LAMA_CHECKPOINT", "./pretrained_models/big-lama")
+LAMA_CHECKPOINT = os.environ.get("LAMA_CHECKPOINT", "/home/suny0a/Proj/ImageBrush/NeoAnalogist/pretrained/InpaintAnything/big-lama")
 DEVICE = os.environ.get("DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
 
 # Debug mode
