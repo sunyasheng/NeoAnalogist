@@ -1,3 +1,4 @@
+import sam2
 from autodistill_grounded_sam_2 import GroundedSAM2
 from autodistill.detection import CaptionOntology
 from autodistill.utils import plot
