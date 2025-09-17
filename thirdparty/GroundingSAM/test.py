@@ -21,6 +21,9 @@ base_model = GroundedSAM2(
 # run inference on a single image
 results = base_model.predict("context_images/image.png")
 
+print(results)
+import pdb; pdb.set_trace()
+
 plot(
     image=cv2.imread("context_images/image.png"),
     classes=base_model.ontology.classes(),
