@@ -1187,7 +1187,7 @@ class ActionExecutor:
         """
         try:
             from core.runtime.tasks.anydoor_edit import AnyDoorClient
-            client = AnyDoorClient(base_url="http://host.docker.internal:8401")
+            client = AnyDoorClient(base_url="http://10.64.74.69:8401")
 
             if not action.ref_image_path or not action.target_image_path or not action.target_mask_path:
                 return AnyDoorEditObservation(success=False, error_message="ref_image_path, target_image_path, target_mask_path are required")
