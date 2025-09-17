@@ -26,5 +26,6 @@ plot(
     classes=base_model.ontology.classes(),
     detections=results
 )
+cv2.imwrite("context_images/vis.png", vis)  # 输出可视化结果
 # label all images in a folder called `context_images`
 base_model.label("./context_images", extension=".png")
