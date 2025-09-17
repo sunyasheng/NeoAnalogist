@@ -28,12 +28,12 @@ import sys
 import numpy as np
 from PIL import Image
 import torch
+from autodistill_grounded_sam import GroundedSAM
+from autodistill.detection import CaptionOntology
 
 app = FastAPI(title="GroundingSAM API", description="Text-prompted segmentation (GroundingDINO + SAM)", version="1.0.0")
 
-# Global caches
-_GROUNDER = None
-_SAM_PREDICTOR = None
+# Global caches (autodistill version creates model per prompt; keep only startup error)
 _STARTUP_ERROR: Optional[str] = None
 
 # Provide sensible defaults for env vars (can be overridden by user env)
@@ -66,31 +66,13 @@ def _ensure_thirdparty_on_path() -> None:
 
 
 def _try_import_modules():
-    """Import GroundingDINO + SAM modules.
-
-    Returns (gd_fns, sam_model_registry, SamPredictor) or (None, err).
-    gd_fns: dict with keys {load_model, load_image, predict}.
-    """
-    _ensure_thirdparty_on_path()
+    """Validate imports needed for autodistill-grounded-sam."""
     try:
-        from groundingdino.util.inference import (
-            load_model as gd_load_model,  # type: ignore
-            load_image as gd_load_image,  # type: ignore
-            predict as gd_predict,        # type: ignore
-        )
-        from segment_anything import sam_model_registry, SamPredictor  # type: ignore
-        gd_fns = {
-            "load_model": gd_load_model,
-            "load_image": gd_load_image,
-            "predict": gd_predict,
-        }
-        return (gd_fns, sam_model_registry, SamPredictor), None
+        _ = GroundedSAM  # noqa: F841
+        _ = CaptionOntology  # noqa: F841
+        return True, None
     except Exception as e:  # noqa: BLE001
-        return None, (
-            "GroundingDINO/SAM not available. Install and ensure weights are present. "
-            "Hint: pip install groundingdino segment-anything; or add your GroundingDINO to PYTHONPATH. "
-            f"Import error: {e}"
-        )
+        return False, f"autodistill-grounded-sam not available: {e}"
 
 
 def _load_once():
@@ -117,54 +99,13 @@ def _load_once():
         print(f"[GroundingSAM] Startup error: {_STARTUP_ERROR}")
         return
 
-    modules, err = _try_import_modules()
-    if err is not None:
+    ok, err = _try_import_modules()
+    if not ok:
         _STARTUP_ERROR = err
         print(f"[GroundingSAM] Import error: {_STARTUP_ERROR}")
         return
-    gd_fns, sam_model_registry, SamPredictor = modules  # type: ignore[misc]
 
-    try:
-        # Instantiate GroundingDINO with explicit cfg/ckpt from env (util API)
-        device = (
-            "cuda"
-            if (os.environ.get("FORCE_CUDA", "1") != "0" and os.environ.get("CUDA_VISIBLE_DEVICES", "") != "-1" and torch.cuda.is_available())
-            else "cpu"
-        )
-        grounder = gd_fns["load_model"](
-            model_config_path=os.environ.get("GROUNDING_DINO_CONFIG"),
-            model_checkpoint_path=os.environ.get("GROUNDING_DINO_CHECKPOINT"),
-            device=device,
-        )
-    except Exception as e:  # noqa: BLE001
-        _STARTUP_ERROR = f"Failed to initialize GroundingDINO: {e}"
-        print(f"[GroundingSAM] {_STARTUP_ERROR}")
-        return
-
-    # SAM settings via env
-    sam_variant = os.environ.get("SAM_MODEL_TYPE", "vit_h")
-    sam_ckpt = os.environ.get("SAM_CHECKPOINT", "")
-    if not sam_ckpt:
-        _STARTUP_ERROR = (
-            "SAM checkpoint not configured. Set SAM_CHECKPOINT=/path/to/sam_vit_h_4b8939.pth "
-            "and optionally SAM_MODEL_TYPE (e.g., vit_h)."
-        )
-        print(f"[GroundingSAM] {_STARTUP_ERROR}")
-        return
-
-    try:
-        sam = sam_model_registry[sam_variant](checkpoint=sam_ckpt)  # type: ignore[index]
-        if torch.cuda.is_available() and os.environ.get("CUDA_VISIBLE_DEVICES", "") != "-1":
-            sam = sam.to("cuda")
-        predictor = SamPredictor(sam)
-    except Exception as e:  # noqa: BLE001
-        _STARTUP_ERROR = f"Failed to initialize SAM ({sam_variant}): {e}"
-        print(f"[GroundingSAM] {_STARTUP_ERROR}")
-        return
-
-    _GROUNDER = {"model": grounder, "fns": gd_fns}
-    _SAM_PREDICTOR = predictor
-    print("[GroundingSAM] Models loaded successfully.")
+    print("[GroundingSAM] autodistill-grounded-sam imports ok. Will build model per request.")
 
 
 def _load_image_to_numpy(upload: UploadFile) -> np.ndarray:
@@ -186,70 +127,53 @@ async def grounding_sam_segment(
     text_threshold: float = Form(0.25),
     output_dir: Optional[str] = Form(None),
 ):
-    # Ensure models are loaded once
+    # Ensure environment ok
     if _STARTUP_ERROR is not None:
         return JSONResponse(status_code=501, content={"success": False, "error": _STARTUP_ERROR})
-    if _GROUNDER is None or _SAM_PREDICTOR is None:
-        _load_once()
+    _load_once()
     if _STARTUP_ERROR is not None:
         return JSONResponse(status_code=501, content={"success": False, "error": _STARTUP_ERROR})
 
     try:
-        # Inference
-        image_np = _load_image_to_numpy(image)
-        # Use GroundingDINO util API: save temp to reuse load_image
-        import tempfile
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=True) as tmp:
-            Image.fromarray(image_np).save(tmp.name)
-            _, gd_img = _GROUNDER["fns"]["load_image"](tmp.name)  # type: ignore[index]
+        # Build ontology from prompt (comma/space split)
+        labels = [t.strip() for t in text_prompt.split(",") if t.strip()]
+        if not labels:
+            return JSONResponse(status_code=400, content={"success": False, "error": "text_prompt is empty"})
+        ontology = CaptionOntology({label: label for label in labels})
 
-        device = (
-            "cuda"
-            if (torch.cuda.is_available() and os.environ.get("CUDA_VISIBLE_DEVICES", "") != "-1")
-            else "cpu"
-        )
-        boxes, logits, phrases = _GROUNDER["fns"]["predict"](  # type: ignore[index]
-            _GROUNDER["model"],  # type: ignore[index]
-            gd_img,
-            caption=text_prompt,
+        # Instantiate model per request (simple & robust)
+        device = "cuda" if (torch.cuda.is_available() and os.environ.get("CUDA_VISIBLE_DEVICES", "") != "-1") else "cpu"
+        model = GroundedSAM(
+            ontology=ontology,
+            grounded_dino_checkpoint=os.environ.get("GROUNDING_DINO_CHECKPOINT"),
+            sam_checkpoint=os.environ.get("SAM_CHECKPOINT"),
             box_threshold=box_threshold,
             text_threshold=text_threshold,
             device=device,
         )
 
-        # If no boxes, return empty result
-        if boxes is None or len(boxes) == 0:
-            return {"success": True, "num_instances": 0, "mask_paths": []}
+        # Save upload to temp path for predict
+        import tempfile
+        image_np = _load_image_to_numpy(image)
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=True) as tmp:
+            Image.fromarray(image_np).save(tmp.name)
+            results = model.predict(tmp.name)
 
-        predictor = _SAM_PREDICTOR
-        predictor.set_image(image_np)  # type: ignore[union-attr]
-
+        # Save masks
         mask_paths: List[str] = []
-        h, w = image_np.shape[:2]
-        # boxes from gd_predict may be torch.Tensor; normalized xyxy (0..1). Convert to pixel xyxy.
-        if isinstance(boxes, torch.Tensor):
-            boxes_np = boxes.detach().cpu().numpy()
-        else:
-            boxes_np = np.asarray(boxes, dtype=np.float32)
-        if boxes_np.ndim == 1:
-            boxes_np = boxes_np[None, :]
-        boxes_xyxy = boxes_np * np.array([w, h, w, h], dtype=np.float32)
-        boxes_xyxy = np.clip(boxes_xyxy, [0, 0, 0, 0], [w - 1, h - 1, w - 1, h - 1])
-
-        for i, box_xyxy in enumerate(boxes_xyxy):
-            # SAM expects xyxy pixel box
-            masks, _, _ = predictor.predict(
-                box=box_xyxy,
-                multimask_output=False,
-            )
-            mask = (masks[0].astype(np.uint8) * 255)
-            if output_dir:
-                os.makedirs(output_dir, exist_ok=True)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+            vis_path = os.path.join(output_dir, "vis.jpg")
+            results.save(vis_path)
+            # autodistill results.masks -> list of numpy bool/uint8 (H,W)
+            for i, m in enumerate(getattr(results, "masks", []) or []):
+                arr = (m.astype("uint8") * 255)
                 out_path = os.path.join(output_dir, f"mask_{i}.png")
-                Image.fromarray(mask).save(out_path)
+                Image.fromarray(arr).save(out_path)
                 mask_paths.append(out_path)
 
-        return {"success": True, "num_instances": len(mask_paths) if output_dir else len(boxes), "mask_paths": mask_paths}
+        num = len(getattr(results, "masks", []) or [])
+        return {"success": True, "num_instances": num, "mask_paths": mask_paths}
     except Exception as e:  # noqa: BLE001
         return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
