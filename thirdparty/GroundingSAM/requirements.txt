@@ -7,7 +7,6 @@ numpy>=1.23,<2
 
 # Core autodistill + GSAM2 stack
 autodistill==0.1.29
-autodistill-grounded-sam-2==0.1.1
 
 # Torch stack (adjust versions to match your CUDA)
 torch>=2.1.0
