@@ -1003,14 +1003,8 @@ def main():
                 print("Error: --grounding-sam-image-path and --grounding-sam-text-prompt are required")
                 return
 
-            # For output_dir, pass HOST PATH (absolute) so external FastAPI on host can write there
-            output_dir_host = None
-            if args.grounding_sam_output_dir:
-                od = args.grounding_sam_output_dir
-                if os.path.isabs(od):
-                    output_dir_host = od
-                else:
-                    output_dir_host = os.path.join(os.getcwd(), od)
+            # Pass output_dir THROUGH UNCHANGED so it can be a valid path on the GSAM host
+            output_dir_host = args.grounding_sam_output_dir or None
 
             # Build action including return_type and output_dir (host path)
             action = GroundingSAMAction(
