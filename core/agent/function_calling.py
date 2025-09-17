@@ -26,13 +26,14 @@ from core.agent.tools.image_entity_extract import ImageEntityExtractTool
 from core.agent.tools.experiment_manager import ExperimentManagerTool
 from core.agent.tools.got_edit import GoTEditTool
 from core.agent.tools.anydoor_edit import AnyDoorEditTool
+from core.agent.tools.grounding_sam import GroundingSAMTool
 from core.agent.tools.qwen_api import QwenAPITool
 from core.agent.tools.image_edit_judge import ImageEditJudgeTool
 from core.events.action import (Action, AgentFinishAction, AgentThinkAction,
                                 BrowseInteractiveAction, BrowseURLAction,
                                 CmdRunAction, FileEditAction, FileReadAction,
                                 MessageAction, TaskGraphBuildAction, RepoPlanAction, RepoCreateAction, RepoAnalyzerAction, RepoUpdateAction, RepoVerifyAction, RepoRunAction, PaperReproductionAnalyzerAction, RepoDebugAction, RepoEditAction, PDFQueryAction, IPythonRunCellAction, RepoJudgeAction, PaperRubricAction, ExperimentManagerAction)
-from core.events.action.image import QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction
+from core.events.action.image import QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction
 from core.events.event import FileEditSource, FileReadSource, ToolCallMetadata
 
 
@@ -165,6 +166,18 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     input_caption=arguments.get("input_caption", ""),
                     output_caption=arguments.get("output_caption", ""),
                     use_qwen_analysis=arguments.get("use_qwen_analysis", True),
+                    thought=thought,
+                )
+                action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
+            # ================================================
+            # GroundingSAMTool
+            # ================================================
+            elif tool_call.function.name == GroundingSAMTool["function"]["name"]:
+                action = GroundingSAMAction(
+                    image_path=arguments.get("image_path", ""),
+                    text_prompt=arguments.get("text_prompt", ""),
+                    return_type=arguments.get("return_type", "json"),
+                    output_dir=arguments.get("output_dir", None),
                     thought=thought,
                 )
                 action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
@@ -542,6 +555,7 @@ def get_tools(
         # ImageEntityExtractTool,
         GoTEditTool,
         AnyDoorEditTool,
+        GroundingSAMTool,
         ImageEditJudgeTool,
         # QwenAPITool,
         # PDFQueryTool,

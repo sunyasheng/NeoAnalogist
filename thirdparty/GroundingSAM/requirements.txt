@@ -1,0 +1,27 @@
+fastapi==0.112.2
+uvicorn[standard]==0.30.6
+requests>=2.31.0
+Pillow>=10.0.0
+opencv-python-headless>=4.8.0
+numpy>=1.23,<2
+
+# Core autodistill + GSAM2 stack
+autodistill>=0.4.0
+autodistill-grounded-sam-2>=0.1.1
+
+# Torch stack (adjust versions to match your CUDA)
+torch>=2.1.0
+torchvision>=0.16.0
+
+# HF ecosystem versions compatible with GSAM2
+transformers==4.41.2
+accelerate==0.31.0
+peft==0.11.1
+
+# Optional but commonly required
+addict>=2.4.0
+yapf>=0.40.2
+
+# Optional acceleration (requires matching CUDA/torch; may need --no-build-isolation)
+flash-attn==2.5.6
+
