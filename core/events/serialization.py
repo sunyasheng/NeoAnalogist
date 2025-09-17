@@ -49,10 +49,10 @@ from core.events.observation import (AgentThinkObservation,
                                      Observation, TaskGraphBuildObservation, SnapshotObservation, RollbackObservation,
                                      RepoPlanObservation, RepoCreateObservation, RepoAnalyzerObservation, RepoUpdateObservation, RepoVerifyObservation, RepoRunObservation, PaperReproductionAnalyzerObservation, RepoDebugObservation, RepoEditObservation, PDFQueryObservation, IPythonRunCellObservation, RepoJudgeObservation, PaperRubricObservation)
 from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation
-from core.events.observation.repo import GoTEditObservation, QwenAPIObservation
+from core.events.observation.repo import GoTEditObservation, QwenAPIObservation, AnyDoorEditObservation
 from core.events.observation.experiment import ExperimentManagerObservation
 from core.utils.types.exceptions import LLMMalformedActionError
-from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction
 
 actions = (
     FileEditAction,
@@ -87,6 +87,7 @@ actions = (
     GoTEditAction,
     QwenAPIAction,
     ImageEditJudgeAction,
+    AnyDoorEditAction,
 )
 
 observations = (
@@ -117,6 +118,7 @@ observations = (
     ImageEditJudgeObservation,
     GoTEditObservation,
     QwenAPIObservation,
+    AnyDoorEditObservation,
     ExperimentManagerObservation,
 )
 
