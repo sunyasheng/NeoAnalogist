@@ -27,6 +27,7 @@ import os
 import sys
 import numpy as np
 from PIL import Image
+import torch
 
 app = FastAPI(title="GroundingSAM API", description="Text-prompted segmentation (GroundingDINO + SAM)", version="1.0.0")
 
@@ -137,6 +138,8 @@ def _load_once():
 
     try:
         sam = sam_model_registry[sam_variant](checkpoint=sam_ckpt)  # type: ignore[index]
+        if torch.cuda.is_available() and os.environ.get("CUDA_VISIBLE_DEVICES", "") != "-1":
+            sam = sam.to("cuda")
         predictor = SamPredictor(sam)
     except Exception as e:  # noqa: BLE001
         _STARTUP_ERROR = f"Failed to initialize SAM ({sam_variant}): {e}"
