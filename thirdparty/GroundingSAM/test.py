@@ -27,4 +27,4 @@ plot(
     detections=results
 )
 # label all images in a folder called `context_images`
-base_model.label("./context_images", extension=".jpeg")
+base_model.label("./context_images", extension=".png")
