@@ -66,12 +66,25 @@ def _ensure_thirdparty_on_path() -> None:
 
 
 def _try_import_modules():
-    """Import GroundingDINO + SAM modules. Returns (Grounder, sam_model_registry, SamPredictor) or (None, err)."""
+    """Import GroundingDINO + SAM modules.
+
+    Returns (gd_fns, sam_model_registry, SamPredictor) or (None, err).
+    gd_fns: dict with keys {load_model, load_image, predict}.
+    """
     _ensure_thirdparty_on_path()
     try:
-        from groundingdino.util.inference import Model as Grounder  # type: ignore
+        from groundingdino.util.inference import (
+            load_model as gd_load_model,  # type: ignore
+            load_image as gd_load_image,  # type: ignore
+            predict as gd_predict,        # type: ignore
+        )
         from segment_anything import sam_model_registry, SamPredictor  # type: ignore
-        return (Grounder, sam_model_registry, SamPredictor), None
+        gd_fns = {
+            "load_model": gd_load_model,
+            "load_image": gd_load_image,
+            "predict": gd_predict,
+        }
+        return (gd_fns, sam_model_registry, SamPredictor), None
     except Exception as e:  # noqa: BLE001
         return None, (
             "GroundingDINO/SAM not available. Install and ensure weights are present. "
@@ -109,13 +122,16 @@ def _load_once():
         _STARTUP_ERROR = err
         print(f"[GroundingSAM] Import error: {_STARTUP_ERROR}")
         return
-    Grounder, sam_model_registry, SamPredictor = modules  # type: ignore[misc]
+    gd_fns, sam_model_registry, SamPredictor = modules  # type: ignore[misc]
 
     try:
-        # Instantiate GroundingDINO with explicit cfg/ckpt from env
-        device = "cuda" if (os.environ.get("FORCE_CUDA", "1") != "0" and \
-                            os.environ.get("CUDA_VISIBLE_DEVICES", "") != "-1") else "cpu"
-        grounder = Grounder(
+        # Instantiate GroundingDINO with explicit cfg/ckpt from env (util API)
+        device = (
+            "cuda"
+            if (os.environ.get("FORCE_CUDA", "1") != "0" and os.environ.get("CUDA_VISIBLE_DEVICES", "") != "-1" and torch.cuda.is_available())
+            else "cpu"
+        )
+        grounder = gd_fns["load_model"](
             model_config_path=os.environ.get("GROUNDING_DINO_CONFIG"),
             model_checkpoint_path=os.environ.get("GROUNDING_DINO_CHECKPOINT"),
             device=device,
@@ -146,7 +162,7 @@ def _load_once():
         print(f"[GroundingSAM] {_STARTUP_ERROR}")
         return
 
-    _GROUNDER = grounder
+    _GROUNDER = {"model": grounder, "fns": gd_fns}
     _SAM_PREDICTOR = predictor
     print("[GroundingSAM] Models loaded successfully.")
 
@@ -181,11 +197,24 @@ async def grounding_sam_segment(
     try:
         # Inference
         image_np = _load_image_to_numpy(image)
-        boxes, labels, scores = _GROUNDER.predict(  # type: ignore[assignment]
-            image_np,
-            text_prompt,
+        # Use GroundingDINO util API: save temp to reuse load_image
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=True) as tmp:
+            Image.fromarray(image_np).save(tmp.name)
+            _, gd_img = _GROUNDER["fns"]["load_image"](tmp.name)  # type: ignore[index]
+
+        device = (
+            "cuda"
+            if (torch.cuda.is_available() and os.environ.get("CUDA_VISIBLE_DEVICES", "") != "-1")
+            else "cpu"
+        )
+        boxes, logits, phrases = _GROUNDER["fns"]["predict"](  # type: ignore[index]
+            _GROUNDER["model"],  # type: ignore[index]
+            gd_img,
+            caption=text_prompt,
             box_threshold=box_threshold,
             text_threshold=text_threshold,
+            device=device,
         )
 
         # If no boxes, return empty result
@@ -197,9 +226,15 @@ async def grounding_sam_segment(
 
         mask_paths: List[str] = []
         h, w = image_np.shape[:2]
-        for i, box in enumerate(boxes):
-            # SAM expects box in XYXY, image space
-            box_xyxy = np.array(box, dtype=np.float32)
+        # boxes from gd_predict are normalized xyxy (0..1). Convert to pixel xyxy.
+        boxes_np = np.array(boxes, dtype=np.float32)
+        if boxes_np.ndim == 1:
+            boxes_np = boxes_np[None, :]
+        boxes_xyxy = boxes_np * np.array([w, h, w, h], dtype=np.float32)
+        boxes_xyxy = np.clip(boxes_xyxy, [0, 0, 0, 0], [w - 1, h - 1, w - 1, h - 1])
+
+        for i, box_xyxy in enumerate(boxes_xyxy):
+            # SAM expects xyxy pixel box
             masks, _, _ = predictor.predict(
                 box=box_xyxy,
                 multimask_output=False,
