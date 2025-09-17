@@ -37,11 +37,6 @@ app = FastAPI(title="GroundingSAM API", description="Text-prompted segmentation 
 
 _HERE = os.path.abspath(os.path.dirname(__file__))
 
-def _validate_env() -> Optional[str]:
-    # For GSAM2 we assume Florence2/SAM2 are installable/importable in this env.
-    # If you need strict checks, add imports here and return errors on ImportError.
-    return None
-
 
 def _load_image_to_numpy(upload: UploadFile) -> np.ndarray:
     data = upload.file.read()
@@ -85,6 +80,7 @@ async def grounding_sam_segment(
             Image.fromarray(image_np).save(tmp.name)
             results = model.predict(tmp.name)
 
+        import pdb; pdb.set_trace()
         masks = getattr(results, "masks", []) or []
         num = len(masks)
 
