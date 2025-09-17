@@ -31,8 +31,8 @@ current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
 # Import Inpaint-Anything modules
-from sam_segment import predict_masks_with_sam
-from lama_inpaint import inpaint_img_with_lama
+from sam_segment import predict_masks_with_sam, build_sam_model
+from lama_inpaint import inpaint_img_with_lama, build_lama_model
 from utils import load_img_to_array, save_array_to_img, dilate_mask
 
 app = FastAPI(title="Inpaint-Anything API", version="1.0.0")
@@ -51,6 +51,48 @@ print(f"[Inpaint-Anything] Starting with device: {DEVICE}")
 print(f"[Inpaint-Anything] SAM model: {SAM_MODEL_TYPE} at {SAM_CHECKPOINT}")
 print(f"[Inpaint-Anything] LaMa config: {LAMA_CONFIG}")
 print(f"[Inpaint-Anything] LaMa checkpoint: {LAMA_CHECKPOINT}")
+
+# Global model cache
+sam_model = None
+lama_model = None
+
+def load_sam_model():
+    """Load SAM model once at startup."""
+    global sam_model
+    if sam_model is None:
+        print(f"[Inpaint-Anything] Loading SAM model...")
+        try:
+            sam_model = build_sam_model(
+                model_type=SAM_MODEL_TYPE,
+                ckpt_p=SAM_CHECKPOINT,
+                device=DEVICE,
+            )
+            print(f"[Inpaint-Anything] SAM model loaded successfully")
+        except Exception as e:
+            print(f"[Inpaint-Anything] Failed to load SAM model: {e}")
+            sam_model = None
+    return sam_model
+
+def load_lama_model():
+    """Load LaMa model once at startup."""
+    global lama_model
+    if lama_model is None:
+        print(f"[Inpaint-Anything] Loading LaMa model...")
+        try:
+            lama_model = build_lama_model(LAMA_CONFIG, LAMA_CHECKPOINT, device=DEVICE)
+            print(f"[Inpaint-Anything] LaMa model loaded successfully")
+        except Exception as e:
+            print(f"[Inpaint-Anything] Failed to load LaMa model: {e}")
+            lama_model = None
+    return lama_model
+
+@app.on_event("startup")
+async def startup_event():
+    """Load models at startup."""
+    print("[Inpaint-Anything] Loading models at startup...")
+    load_sam_model()
+    load_lama_model()
+    print("[Inpaint-Anything] Startup complete!")
 
 
 @app.get("/")
@@ -120,13 +162,20 @@ async def remove_object(
                 if INPAINT_DEBUG:
                     print(f"[DEBUG] Using point coordinates: {point_coords_list}, labels: {point_labels_list}")
                 
-                masks, _, _ = predict_masks_with_sam(
-                    img,
-                    point_coords_list,
-                    point_labels_list,
-                    model_type=SAM_MODEL_TYPE,
-                    ckpt_p=SAM_CHECKPOINT,
-                    device=DEVICE,
+                # Use preloaded SAM model
+                sam_predictor = load_sam_model()
+                if sam_predictor is None:
+                    return JSONResponse(
+                        status_code=500,
+                        content={"success": False, "error": "SAM model not loaded"}
+                    )
+                
+                # Use the preloaded predictor
+                sam_predictor.set_image(img)
+                masks, scores, logits = sam_predictor.predict(
+                    point_coords=np.array(point_coords_list),
+                    point_labels=np.array(point_labels_list),
+                    multimask_output=True,
                 )
                 if INPAINT_DEBUG:
                     print(f"[DEBUG] Generated {len(masks)} masks from SAM")
@@ -165,10 +214,17 @@ async def remove_object(
             save_array_to_img(mask, mask_path)
             mask_paths.append(mask_path)
             
-            # Inpaint
+            # Inpaint using preloaded LaMa model
             try:
-                inpainted_img = inpaint_img_with_lama(
-                    img, mask, LAMA_CONFIG, LAMA_CHECKPOINT, device=DEVICE
+                lama_model = load_lama_model()
+                if lama_model is None:
+                    print(f"[ERROR] LaMa model not loaded, skipping mask {i}")
+                    continue
+                
+                # Use the preloaded model
+                from lama_inpaint import inpaint_img_with_builded_lama
+                inpainted_img = inpaint_img_with_builded_lama(
+                    lama_model, img, mask, device=DEVICE
                 )
                 inpainted_images.append(inpainted_img)
                 

@@ -15,6 +15,7 @@ torchaudio==2.3.0
 omegaconf>=2.3.0
 matplotlib>=3.7.0
 pathlib2>=2.3.7
+kornia>=0.5.8
 
 # SAM (Segment Anything Model) - install from source
 # git+https://github.com/facebookresearch/segment-anything.git#egg=segment-anything
