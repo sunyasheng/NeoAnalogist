@@ -76,9 +76,7 @@ def _try_import_modules():
 
 
 def _load_once():
-    global _GROUNDER, _SAM_PREDICTOR, _STARTUP_ERROR
-    if _GROUNDER is not None and _SAM_PREDICTOR is not None:
-        return
+    global _STARTUP_ERROR
     # Validate required files first for clearer errors
     missing: list[str] = []
     sam_ckpt_env = os.environ.get("SAM_CHECKPOINT", "")
