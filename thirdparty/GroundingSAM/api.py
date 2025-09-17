@@ -226,8 +226,11 @@ async def grounding_sam_segment(
 
         mask_paths: List[str] = []
         h, w = image_np.shape[:2]
-        # boxes from gd_predict are normalized xyxy (0..1). Convert to pixel xyxy.
-        boxes_np = np.array(boxes, dtype=np.float32)
+        # boxes from gd_predict may be torch.Tensor; normalized xyxy (0..1). Convert to pixel xyxy.
+        if isinstance(boxes, torch.Tensor):
+            boxes_np = boxes.detach().cpu().numpy()
+        else:
+            boxes_np = np.asarray(boxes, dtype=np.float32)
         if boxes_np.ndim == 1:
             boxes_np = boxes_np[None, :]
         boxes_xyxy = boxes_np * np.array([w, h, w, h], dtype=np.float32)
