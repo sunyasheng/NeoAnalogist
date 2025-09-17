@@ -183,8 +183,6 @@ async def grounding_sam_segment(
         mask_paths: List[str] = []
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
-            vis_path = os.path.join(output_dir, "vis.jpg")
-            results.save(vis_path)
             # autodistill results.masks -> list of numpy bool/uint8 (H,W)
             for i, m in enumerate(getattr(results, "masks", []) or []):
                 arr = (m.astype("uint8") * 255)
