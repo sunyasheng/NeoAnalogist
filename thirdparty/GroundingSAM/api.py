@@ -82,9 +82,30 @@ def _load_once():
     global _GROUNDER, _SAM_PREDICTOR, _STARTUP_ERROR
     if _GROUNDER is not None and _SAM_PREDICTOR is not None:
         return
+    # Validate required files first for clearer errors
+    missing: list[str] = []
+    sam_ckpt_env = os.environ.get("SAM_CHECKPOINT", "")
+    gd_ckpt_env = os.environ.get("GROUNDING_DINO_CHECKPOINT", "")
+    gd_cfg_env = os.environ.get("GROUNDING_DINO_CONFIG", "")
+    if not sam_ckpt_env or not os.path.exists(sam_ckpt_env):
+        missing.append(f"SAM_CHECKPOINT={sam_ckpt_env or '<unset>'}")
+    if not gd_ckpt_env or not os.path.exists(gd_ckpt_env):
+        missing.append(f"GROUNDING_DINO_CHECKPOINT={gd_ckpt_env or '<unset>'}")
+    if not gd_cfg_env or not os.path.exists(gd_cfg_env):
+        missing.append(f"GROUNDING_DINO_CONFIG={gd_cfg_env or '<unset>'}")
+    if missing:
+        _STARTUP_ERROR = (
+            "Missing or invalid paths for required weights/config:\n  - "
+            + "\n  - ".join(missing)
+            + "\nPlease set these environment variables to existing files."
+        )
+        print(f"[GroundingSAM] Startup error: {_STARTUP_ERROR}")
+        return
+
     modules, err = _try_import_modules()
     if err is not None:
         _STARTUP_ERROR = err
+        print(f"[GroundingSAM] Import error: {_STARTUP_ERROR}")
         return
     Grounder, sam_model_registry, SamPredictor = modules  # type: ignore[misc]
 
@@ -93,6 +114,7 @@ def _load_once():
         grounder = Grounder()
     except Exception as e:  # noqa: BLE001
         _STARTUP_ERROR = f"Failed to initialize GroundingDINO: {e}"
+        print(f"[GroundingSAM] {_STARTUP_ERROR}")
         return
 
     # SAM settings via env
@@ -103,6 +125,7 @@ def _load_once():
             "SAM checkpoint not configured. Set SAM_CHECKPOINT=/path/to/sam_vit_h_4b8939.pth "
             "and optionally SAM_MODEL_TYPE (e.g., vit_h)."
         )
+        print(f"[GroundingSAM] {_STARTUP_ERROR}")
         return
 
     try:
@@ -110,10 +133,12 @@ def _load_once():
         predictor = SamPredictor(sam)
     except Exception as e:  # noqa: BLE001
         _STARTUP_ERROR = f"Failed to initialize SAM ({sam_variant}): {e}"
+        print(f"[GroundingSAM] {_STARTUP_ERROR}")
         return
 
     _GROUNDER = grounder
     _SAM_PREDICTOR = predictor
+    print("[GroundingSAM] Models loaded successfully.")
 
 
 def _load_image_to_numpy(upload: UploadFile) -> np.ndarray:
