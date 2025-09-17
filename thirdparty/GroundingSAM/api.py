@@ -35,6 +35,25 @@ _GROUNDER = None
 _SAM_PREDICTOR = None
 _STARTUP_ERROR: Optional[str] = None
 
+# Provide sensible defaults for env vars (can be overridden by user env)
+_HERE = os.path.abspath(os.path.dirname(__file__))
+_REPO_ROOT = os.path.abspath(os.path.join(_HERE, "..", ".."))
+_DEFAULT_SAM = os.path.join(_REPO_ROOT, "weights", "sam_vit_h_4b8939.pth")
+_DEFAULT_GDINO_CKPT = os.path.join(_REPO_ROOT, "weights", "groundingdino_swint_ogc.pth")
+_DEFAULT_GDINO_CFG = os.path.join(
+    _REPO_ROOT,
+    "thirdparty",
+    "GroundingDINO",
+    "groundingdino",
+    "config",
+    "GroundingDINO_SwinT_OGC.py",
+)
+
+os.environ.setdefault("SAM_MODEL_TYPE", "vit_h")
+os.environ.setdefault("SAM_CHECKPOINT", _DEFAULT_SAM)
+os.environ.setdefault("GROUNDING_DINO_CHECKPOINT", _DEFAULT_GDINO_CKPT)
+os.environ.setdefault("GROUNDING_DINO_CONFIG", _DEFAULT_GDINO_CFG)
+
 
 def _ensure_thirdparty_on_path() -> None:
     here = os.path.abspath(os.path.dirname(__file__))
