@@ -655,6 +655,8 @@ def create_test_repo(repo_dir: str) -> None:
 # python -m core.runtime.impl.docker.docker_runtime --qwen-api-image-path /app_sci/workspace/imgs/test.png --qwen-api-prompt "Describe what you see in this image"
 # python -m core.runtime.impl.docker.docker_runtime --qwen-api-image-path /app_sci/workspace/imgs/test.png --qwen-api-prompt "What objects are in this image?" --qwen-api-max-tokens 200 --qwen-api-temperature 0.8
 # python -m core.runtime.impl.docker.docker_runtime --image-edit-judge-original-path /app_sci/workspace/imgs/original.jpg --image-edit-judge-edited-path /app_sci/workspace/imgs/edited.jpg --image-edit-judge-input-caption "a landscape with blue sky" --image-edit-judge-output-caption "a landscape with dramatic stormy sky"
+# python -m core.runtime.impl.docker.docker_runtime   --anydoor-ref-image-path /app_sci/workspace/examples/TestDreamBooth/FG/01.png   --anydoor-target-image-path /app_sci/workspace/examples/TestDreamBooth/BG/000000309203_GT.png   --anydoor-target-mask-path /app_sci/workspace/examples/TestDreamBooth/BG/000000309203_mask.png   --anydoor-guidance-scale 5.0   --anydoor-output-path /app_sci/workspace/anydoor_outputs/anydoor_result.png
+
 
 def main():
     """Test function for DockerRuntime class"""

@@ -25,13 +25,14 @@ from core.agent.tools.paper_rubric import PaperRubricTool
 from core.agent.tools.image_entity_extract import ImageEntityExtractTool
 from core.agent.tools.experiment_manager import ExperimentManagerTool
 from core.agent.tools.got_edit import GoTEditTool
+from core.agent.tools.anydoor_edit import AnyDoorEditTool
 from core.agent.tools.qwen_api import QwenAPITool
 from core.agent.tools.image_edit_judge import ImageEditJudgeTool
 from core.events.action import (Action, AgentFinishAction, AgentThinkAction,
                                 BrowseInteractiveAction, BrowseURLAction,
                                 CmdRunAction, FileEditAction, FileReadAction,
                                 MessageAction, TaskGraphBuildAction, RepoPlanAction, RepoCreateAction, RepoAnalyzerAction, RepoUpdateAction, RepoVerifyAction, RepoRunAction, PaperReproductionAnalyzerAction, RepoDebugAction, RepoEditAction, PDFQueryAction, IPythonRunCellAction, RepoJudgeAction, PaperRubricAction, ExperimentManagerAction)
-from core.events.action.image import QwenAPIAction, ImageEditJudgeAction
+from core.events.action.image import QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction
 from core.events.event import FileEditSource, FileReadSource, ToolCallMetadata
 
 
@@ -136,6 +137,20 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     guidance_scale=arguments.get("guidance_scale", 7.5),
                     image_guidance_scale=arguments.get("image_guidance_scale", 1.0),
                     cond_image_guidance_scale=arguments.get("cond_image_guidance_scale", 4.0),
+                    output_path=arguments.get("output_path", ""),
+                    thought=thought,
+                )
+                action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
+            # ================================================
+            # AnyDoorEditTool
+            # ================================================
+            elif tool_call.function.name == AnyDoorEditTool["function"]["name"]:
+                action = AnyDoorEditAction(
+                    ref_image_path=arguments.get("ref_image_path", ""),
+                    target_image_path=arguments.get("target_image_path", ""),
+                    target_mask_path=arguments.get("target_mask_path", ""),
+                    ref_mask_path=arguments.get("ref_mask_path", None),
+                    guidance_scale=arguments.get("guidance_scale", 5.0),
                     output_path=arguments.get("output_path", ""),
                     thought=thought,
                 )
@@ -526,6 +541,7 @@ def get_tools(
         FinishTool,
         # ImageEntityExtractTool,
         GoTEditTool,
+        AnyDoorEditTool,
         ImageEditJudgeTool,
         # QwenAPITool,
         # PDFQueryTool,
