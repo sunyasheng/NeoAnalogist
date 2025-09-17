@@ -173,3 +173,4 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=port)
 
 
+# curl -X POST "http://localhost:8401/anydoor/edit"   -F "ref_image=@/home/suny0a/Proj/ImageBrush/NeoAnalogist/thirdparty/AnyDoor/examples/TestDreamBooth/FG/01.png"   -F "target_image=@/home/suny0a/Proj/ImageBrush/NeoAnalogist/thirdparty/AnyDoor/examples/TestDreamBooth/BG/000000309203_GT.png"   -F "target_mask=@/home/suny0a/Proj/ImageBrush/NeoAnalogist/thirdparty/AnyDoor/examples/TestDreamBooth/BG/000000309203_mask.png"   -F "guidance_scale=5.0"   --output anydoor_result.png

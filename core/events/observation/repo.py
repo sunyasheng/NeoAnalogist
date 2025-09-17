@@ -739,6 +739,16 @@ class GoTEditObservation(Observation):
 
 
 @dataclass
+class AnyDoorEditObservation(Observation):
+    """Observation for AnyDoor edit operation."""
+
+    content: str = ""
+    output_path: str = ""
+    success: bool = False
+    error_message: str = ""
+    observation: str = "ANYDOOR_EDIT"
+
+@dataclass
 class QwenAPIObservation(Observation):
     """Observation from Qwen2.5-VL API operation."""
 

@@ -29,6 +29,7 @@ from core.events.observation.repo import PaperRubricObservation
 from core.events.observation.repo import GoTEditObservation, QwenAPIObservation
 from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction
 from core.events.observation.image import ImageEditJudgeObservation
+from core.events.action.image import AnyDoorEditAction
 
 # Import PDF query functionality
 from core.events.action import PDFQueryAction
@@ -189,6 +190,13 @@ class DockerRuntime(ActionExecutionClient):
     def image_edit_judge(self, action: ImageEditJudgeAction) -> ImageEditJudgeObservation:
         """Call image edit judge to evaluate editing quality via the action execution server."""
         return self.send_action_for_execution(action)
+
+    def anydoor_edit(self, action: AnyDoorEditAction):
+        """Call AnyDoor edit via the container server (client-server pattern)."""
+        return self.send_action_for_execution(action)
+
+    # ===== AnyDoor API helper (calls host AnyDoor FastAPI from inside container) =====
+    # Removed client-side direct AnyDoor calls to keep client-server pattern only
 
     def _log_stream(self):
         """处理容器日志流的函数"""
@@ -729,6 +737,13 @@ def main():
     parser.add_argument("--image-edit-judge-output-caption", type=str, help="Output caption (edited image description) for edit judge evaluation", metavar='OUTPUT_CAPTION')
     parser.add_argument("--image-edit-judge-use-qwen", action="store_true", default=True, help="Use Qwen API for intelligent analysis (default: True)")
     parser.add_argument("--image-edit-judge-no-qwen", action="store_true", help="Disable Qwen API analysis")
+    # AnyDoor edit (reference object transfer)
+    parser.add_argument("--anydoor-ref-image-path", type=str, help="Container path to reference image (PNG with alpha preferred)")
+    parser.add_argument("--anydoor-ref-mask-path", type=str, help="Container path to reference mask (optional; required if ref has no alpha)")
+    parser.add_argument("--anydoor-target-image-path", type=str, help="Container path to target image")
+    parser.add_argument("--anydoor-target-mask-path", type=str, help="Container path to target mask (binary)")
+    parser.add_argument("--anydoor-guidance-scale", type=float, default=5.0, help="Guidance scale for AnyDoor")
+    parser.add_argument("--anydoor-output-path", type=str, help="Container path to save output PNG")
     # Experiment Manager (wrap experiments into MLflow scripts or query experiment history)
     parser.add_argument("--exp-manager-cmd", type=str, help="Bash command to wrap into MLflow experiment (e.g., python xxx.py)", metavar='CMD')
     parser.add_argument("--exp-manager-exp-name", type=str, help="Experiment name for the wrapper script", metavar='EXP_NAME')
@@ -889,6 +904,43 @@ def main():
                 'error': getattr(result, 'error_message', ''),
                 'got_text': getattr(result, 'got_text', ''),
                 'image_paths': getattr(result, 'image_paths', []),
+            })
+        elif args.anydoor_ref_image_path or args.anydoor_target_image_path:
+            from core.events.action.image import AnyDoorEditAction
+            # Expect container-absolute paths; if relative, map to /app_sci
+            def to_container_path(p: str) -> str:
+                if not p:
+                    return p
+                if p.startswith('/app_sci/'):
+                    return p
+                if not p.startswith('/'):
+                    return os.path.join('/app_sci', p)
+                return p
+
+            ref_path = to_container_path(args.anydoor_ref_image_path or "")
+            tgt_path = to_container_path(args.anydoor_target_image_path or "")
+            tgt_mask_path = to_container_path(args.anydoor_target_mask_path or "")
+            ref_mask_path = to_container_path(args.anydoor_ref_mask_path or "") if args.anydoor_ref_mask_path else None
+            out_path = to_container_path(args.anydoor_output_path or "") if args.anydoor_output_path else ""
+
+            if not ref_path or not tgt_path or not tgt_mask_path:
+                print("Error: --anydoor-ref-image-path, --anydoor-target-image-path, --anydoor-target-mask-path are required")
+                return
+
+            action = AnyDoorEditAction(
+                ref_image_path=ref_path,
+                target_image_path=tgt_path,
+                target_mask_path=tgt_mask_path,
+                ref_mask_path=ref_mask_path,
+                guidance_scale=args.anydoor_guidance_scale,
+                output_path=out_path,
+            )
+            result = runtime.anydoor_edit(action)
+            print({
+                'success': getattr(result, 'success', False),
+                'error': getattr(result, 'error_message', ''),
+                'output_path': getattr(result, 'output_path', ''),
+                'content': getattr(result, 'content', ''),
             })
         elif args.qwen_api_image_path or args.qwen_api_prompt:
             from core.events.action.image import QwenAPIAction
@@ -1600,6 +1652,9 @@ def main():
             
             if result.error_message:
                 print(f"❌ Error: {result.error_message}")
+        elif args.anydoor_ref_image_path or args.anydoor_target_image_path or args.anydoor_target_mask_path or args.anydoor_ref_mask_path or args.anydoor_output_path:
+            # Define CLI args for AnyDoor if present
+            pass
         else:
             print("Please provide arguments:")
             print("  --command <command>  Execute command in container")
@@ -1642,6 +1697,8 @@ def main():
             print("    Optional: --exp-manager-exp-name <exp_name> (experiment name for the wrapper)")
             print("    Optional: --exp-manager-runs <runs> (run identifiers for future use)")
             print("    Optional: --exp-manager-repo-dir <path> (repository directory for the experiment)")
+            print("  --anydoor-ref-image-path <path> --anydoor-target-image-path <path> --anydoor-target-mask-path <path> Run AnyDoor edit")
+            print("    Optional: --anydoor-ref-mask-path <path> --anydoor-guidance-scale <float> --anydoor-output-path <path>")
 
     except Exception as e:
         print(f"Error: {str(e)}")

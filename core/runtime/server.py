@@ -80,9 +80,9 @@ from core.runtime.tasks.repo_edit import RepoEditTask
 from core.runtime.tasks.pdf_query_task import PDFQueryTool
 from core.events.observation.repo import RepoEditObservation
 from core.runtime.plugins.jupyter import JupyterPlugin
-from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction
 from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation
-from core.events.observation.repo import GoTEditObservation, QwenAPIObservation
+from core.events.observation.repo import GoTEditObservation, QwenAPIObservation, AnyDoorEditObservation
 from core.runtime.tasks.image_entity_extract import ImageEntityExtractTask
 from core.runtime.tasks.got_edit import GoTEditClient
 from core.runtime.tasks.qwen_api import QwenAPIClient
@@ -1180,6 +1180,30 @@ class ActionExecutor:
         except Exception as e:
             logger.error(f"Error in qwen_api: {str(e)}")
             return QwenAPIObservation(success=False, error_message=str(e))
+
+    async def anydoor_edit(self, action: AnyDoorEditAction) -> AnyDoorEditObservation:
+        """Call AnyDoor API from inside container using the task client.
+        Expects container-absolute paths.
+        """
+        try:
+            from core.runtime.tasks.anydoor_edit import AnyDoorClient
+            client = AnyDoorClient(base_url="http://host.docker.internal:8401")
+
+            if not action.ref_image_path or not action.target_image_path or not action.target_mask_path:
+                return AnyDoorEditObservation(success=False, error_message="ref_image_path, target_image_path, target_mask_path are required")
+
+            out = client.edit(
+                ref_image=action.ref_image_path,
+                target_image=action.target_image_path,
+                target_mask=action.target_mask_path,
+                ref_mask=action.ref_mask_path,
+                guidance_scale=action.guidance_scale,
+                output_path=action.output_path or None,
+            )
+            return AnyDoorEditObservation(content=f"AnyDoor output saved", output_path=out, success=True)
+        except Exception as e:
+            logger.error(f"Error in anydoor_edit: {str(e)}")
+            return AnyDoorEditObservation(success=False, error_message=f"Failed to run AnyDoor edit: {str(e)}")
 
     async def image_edit_judge(self, action: ImageEditJudgeAction) -> ImageEditJudgeObservation:
         """Judge image editing quality using AnyBench metrics.

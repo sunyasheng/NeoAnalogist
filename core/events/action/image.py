@@ -88,6 +88,30 @@ class QwenAPIAction(Action):
 
 
 @dataclass
+class AnyDoorEditAction(Action):
+    """Edit image using AnyDoor API (reference object transfer).
+
+    All paths should be absolute container paths when called inside DockerRuntime server.
+    """
+
+    ref_image_path: str = ""
+    target_image_path: str = ""
+    target_mask_path: str = ""
+    ref_mask_path: Optional[str] = None
+    guidance_scale: float = 5.0
+    output_path: str = ""
+    thought: str = ""
+
+    action: str = "anydoor_edit"
+    runnable: ClassVar[bool] = True
+
+    @property
+    def message(self) -> str:
+        return (
+            f"AnyDoor edit: ref={self.ref_image_path} -> target={self.target_image_path}"
+        )
+
+@dataclass
 class ImageEditJudgeAction(Action):
     """Judge image editing quality using AnyBench metrics.
     
