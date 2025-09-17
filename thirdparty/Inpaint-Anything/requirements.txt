@@ -1,0 +1,31 @@
+# Core FastAPI server dependencies
+fastapi==0.112.2
+uvicorn[standard]==0.30.6
+requests>=2.31.0
+Pillow>=10.0.0
+opencv-python-headless>=4.8.0
+numpy<2,>=1.23
+
+# PyTorch stack (adjust versions to match your CUDA)
+torch==2.3.0
+torchvision==0.18.0
+torchaudio==2.3.0
+
+# Inpaint-Anything core dependencies
+omegaconf>=2.3.0
+matplotlib>=3.7.0
+pathlib2>=2.3.7
+
+# SAM (Segment Anything Model) - install from source
+# git+https://github.com/facebookresearch/segment-anything.git#egg=segment-anything
+
+# LaMa inpainting dependencies
+# Note: LaMa has its own requirements in lama/requirements.txt
+# Install with: pip install -r lama/requirements.txt
+
+# Optional: For fill/replace functionality (Stable Diffusion)
+# diffusers>=0.21.0
+# transformers>=4.30.0
+# accelerate>=0.20.0
+# scipy>=1.10.0
+# safetensors>=0.3.0

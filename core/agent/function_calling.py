@@ -27,6 +27,7 @@ from core.agent.tools.experiment_manager import ExperimentManagerTool
 from core.agent.tools.got_edit import GoTEditTool
 from core.agent.tools.anydoor_edit import AnyDoorEditTool
 from core.agent.tools.grounding_sam import GroundingSAMTool
+from core.agent.tools.inpaint_remove import InpaintRemoveTool
 from core.agent.tools.qwen_api import QwenAPITool
 from core.agent.tools.image_edit_judge import ImageEditJudgeTool
 from core.events.action import (Action, AgentFinishAction, AgentThinkAction,
@@ -177,6 +178,21 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     image_path=arguments.get("image_path", ""),
                     text_prompt=arguments.get("text_prompt", ""),
                     return_type=arguments.get("return_type", "json"),
+                    output_dir=arguments.get("output_dir", None),
+                    thought=thought,
+                )
+                action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
+            # ================================================
+            # InpaintRemoveTool
+            # ================================================
+            elif tool_call.function.name == InpaintRemoveTool["function"]["name"]:
+                from core.events.action.image import InpaintRemoveAction
+                action = InpaintRemoveAction(
+                    image_path=arguments.get("image_path", ""),
+                    point_coords=arguments.get("point_coords", None),
+                    mask_path=arguments.get("mask_path", None),
+                    dilate_kernel_size=arguments.get("dilate_kernel_size", 10),
+                    return_type=arguments.get("return_type", "image"),
                     output_dir=arguments.get("output_dir", None),
                     thought=thought,
                 )
@@ -556,6 +572,7 @@ def get_tools(
         GoTEditTool,
         AnyDoorEditTool,
         GroundingSAMTool,
+        InpaintRemoveTool,
         ImageEditJudgeTool,
         # QwenAPITool,
         # PDFQueryTool,

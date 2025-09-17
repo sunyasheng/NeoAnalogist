@@ -29,8 +29,7 @@ from core.runtime.utils.request import send_request
 from core.utils.http_session import HttpSession
 from core.utils.types.exceptions import (AgentRuntimeError,
                                          AgentRuntimeTimeoutError)
-from core.events.action.image import ImageEntityExtractAction
-from core.events.action.image import GroundingSAMAction
+from core.events.action.image import ImageEntityExtractAction, GroundingSAMAction, InpaintRemoveAction
 
 
 class ActionExecutionClient:
@@ -107,6 +106,11 @@ class ActionExecutionClient:
 
     # ---- GroundingSAM passthrough (server will call external FastAPI) ----
     def grounding_sam(self, action: "GroundingSAMAction") -> Observation:
+        if action.timeout is None:
+            action.set_hard_timeout(600, blocking=False)
+        return self.send_action_for_execution(action)
+
+    def inpaint_remove(self, action: "InpaintRemoveAction") -> Observation:
         if action.timeout is None:
             action.set_hard_timeout(600, blocking=False)
         return self.send_action_for_execution(action)

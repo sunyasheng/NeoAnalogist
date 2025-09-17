@@ -80,8 +80,8 @@ from core.runtime.tasks.repo_edit import RepoEditTask
 from core.runtime.tasks.pdf_query_task import PDFQueryTool
 from core.events.observation.repo import RepoEditObservation
 from core.runtime.plugins.jupyter import JupyterPlugin
-from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction
-from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation, GroundingSAMObservation
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, InpaintRemoveAction
+from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation, GroundingSAMObservation, InpaintRemoveObservation
 from core.events.observation.repo import GoTEditObservation, QwenAPIObservation, AnyDoorEditObservation
 from core.runtime.tasks.image_entity_extract import ImageEntityExtractTask
 from core.runtime.tasks.got_edit import GoTEditClient
@@ -1253,6 +1253,67 @@ class ActionExecutor:
         except Exception as e:
             logger.error(f"Error in grounding_sam: {str(e)}")
             return GroundingSAMObservation(success=False, error_message=f"Failed to run GroundingSAM: {str(e)}")
+
+    async def inpaint_remove(self, action: InpaintRemoveAction) -> InpaintRemoveObservation:
+        """Call Inpaint-Anything API from inside container using an HTTP client.
+        Expects container-absolute image path.
+        """
+        try:
+            import requests
+            base_url = os.environ.get("INPAINT_ANYTHING_BASE_URL", "http://10.64.74.69:8601")
+            url = f"{base_url.rstrip('/')}/inpaint/remove"
+
+            if not action.image_path:
+                return InpaintRemoveObservation(success=False, error_message="image_path is required")
+
+            if not action.point_coords and not action.mask_path:
+                return InpaintRemoveObservation(success=False, error_message="Either point_coords or mask_path must be provided")
+
+            files = {
+                "image": open(action.image_path, "rb"),
+            }
+            data = {
+                "point_labels": action.point_labels,
+                "dilate_kernel_size": str(action.dilate_kernel_size),
+                "return_type": "json",
+            }
+            
+            if action.point_coords:
+                data["point_coords"] = action.point_coords
+            if action.mask_path:
+                files["mask"] = open(action.mask_path, "rb")
+            if action.output_dir:
+                data["output_dir"] = action.output_dir
+
+            try:
+                resp = requests.post(url, files=files, data=data, timeout=600)
+                resp.raise_for_status()
+            finally:
+                try:
+                    files["image"].close()
+                    if "mask" in files:
+                        files["mask"].close()
+                except Exception:
+                    pass
+
+            js = resp.json()
+            if js.get("success"):
+                return InpaintRemoveObservation(
+                    content="Inpaint-Anything remove completed",
+                    num_masks=js.get("num_masks", 0),
+                    mask_paths=js.get("mask_paths", []),
+                    result_paths=js.get("result_paths", []),
+                    success=True,
+                )
+            else:
+                return InpaintRemoveObservation(
+                    content="Inpaint-Anything remove failed",
+                    success=False,
+                    error_message=js.get("error", "Unknown error"),
+                )
+        except Exception as e:
+            logger.error(f"Error in inpaint_remove: {str(e)}")
+            return InpaintRemoveObservation(success=False, error_message=f"Failed to run Inpaint-Anything: {str(e)}")
 
     async def image_edit_judge(self, action: ImageEditJudgeAction) -> ImageEditJudgeObservation:
         """Judge image editing quality using AnyBench metrics.

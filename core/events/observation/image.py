@@ -62,3 +62,22 @@ class GroundingSAMObservation(Observation):
             self.mask_paths = []
 
 
+@dataclass
+class InpaintRemoveObservation(Observation):
+    """Observation for Inpaint-Anything remove operation."""
+    
+    content: str = ""
+    num_masks: int = 0
+    mask_paths: List[str] = None
+    result_paths: List[str] = None
+    success: bool = False
+    error_message: str = ""
+    observation: str = "inpaint_remove"
+    
+    def __post_init__(self):
+        if self.mask_paths is None:
+            self.mask_paths = []
+        if self.result_paths is None:
+            self.result_paths = []
+
+

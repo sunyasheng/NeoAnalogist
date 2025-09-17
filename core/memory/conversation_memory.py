@@ -4,7 +4,7 @@ from core.events.action import (Action, AgentFinishAction, AgentThinkAction,
                                 BrowseInteractiveAction, BrowseURLAction,
                                 CmdRunAction, FileEditAction, FileReadAction,
                                 MessageAction, TaskGraphBuildAction, RepoPlanAction, RepoCreateAction, RepoAnalyzerAction, RepoUpdateAction, RepoVerifyAction, RepoRunAction, PaperReproductionAnalyzerAction, RepoDebugAction, RepoEditAction, PDFQueryAction, IPythonRunCellAction, RepoJudgeAction, PaperRubricAction)
-from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, InpaintRemoveAction
 from core.events.event import ActionType, Event, truncate_content
 from core.events.observation import (AgentThinkObservation,
                                      BrowserOutputObservation,
@@ -14,7 +14,7 @@ from core.events.observation import (AgentThinkObservation,
                                      RepoPlanObservation, RepoCreateObservation, RepoAnalyzerObservation, RepoUpdateObservation, RepoVerifyObservation, RepoRunObservation, AgentCondensationObservation, PaperReproductionAnalyzerObservation, RepoDebugObservation, RepoEditObservation, PDFQueryObservation, IPythonRunCellObservation, RepoJudgeObservation)
 from core.events.observation.error import ErrorObservation
 from core.events.observation.repo import PaperRubricObservation, GoTEditObservation, QwenAPIObservation, AnyDoorEditObservation
-from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation, GroundingSAMObservation
+from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation, GroundingSAMObservation, InpaintRemoveObservation
 from core.prompt.prompt_manager import PromptManager
 from core.utils.types.message import ImageContent, Message, TextContent
 from core.memory.view import View
@@ -201,6 +201,7 @@ class ConversationMemory:
                 ImageEditJudgeAction,
                 AnyDoorEditAction,
                 GroundingSAMAction,
+                InpaintRemoveAction,
             ),
         ) or (isinstance(action, CmdRunAction)):
             # or (isinstance(action, CmdRunAction) and action.source == 'agent'):
@@ -464,6 +465,10 @@ class ConversationMemory:
             message = Message(role="user", content=[TextContent(text=text)])
         # GroundingSAM observation
         elif isinstance(obs, GroundingSAMObservation):
+            text = truncate_content(str(obs), max_message_chars)
+            message = Message(role="user", content=[TextContent(text=text)])
+        # InpaintRemove observation
+        elif isinstance(obs, InpaintRemoveObservation):
             text = truncate_content(str(obs), max_message_chars)
             message = Message(role="user", content=[TextContent(text=text)])
         else:

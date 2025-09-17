@@ -154,3 +154,31 @@ class ImageEditJudgeAction(Action):
     def message(self) -> str:
         return f"Judge image edit quality: {self.original_path} -> {self.edited_path} (input: {self.input_caption[:30]}... -> output: {self.output_caption[:30]}...)"
 
+
+@dataclass
+class InpaintRemoveAction(Action):
+    """Remove objects from image using Inpaint-Anything.
+
+    All paths should be absolute container paths when called inside DockerRuntime server.
+    """
+    image_path: str = ""
+    point_coords: Optional[str] = None  # "x,y" format
+    point_labels: str = "1"  # "1" for foreground, "0" for background
+    mask_path: Optional[str] = None  # Optional mask image path
+    dilate_kernel_size: int = 10
+    return_type: str = "json"  # "image" (stream first result) | "json" (return paths)
+    output_dir: Optional[str] = None  # Container path to save results if return_type is json
+    thought: str = ""
+
+    action: str = "inpaint_remove"
+    runnable: ClassVar[bool] = True
+
+    @property
+    def message(self) -> str:
+        if self.mask_path:
+            return f"Inpaint remove with mask: {self.mask_path} on {self.image_path}"
+        elif self.point_coords:
+            return f"Inpaint remove at point: {self.point_coords} on {self.image_path}"
+        else:
+            return f"Inpaint remove on {self.image_path}"
+

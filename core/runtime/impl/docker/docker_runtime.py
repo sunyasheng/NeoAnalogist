@@ -30,7 +30,7 @@ from core.events.observation.repo import GoTEditObservation, QwenAPIObservation
 from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction
 from core.events.observation.image import ImageEditJudgeObservation
 from core.events.action.image import AnyDoorEditAction
-from core.events.action.image import GroundingSAMAction
+from core.events.action.image import GroundingSAMAction, InpaintRemoveAction
 
 # Import PDF query functionality
 from core.events.action import PDFQueryAction
@@ -742,6 +742,13 @@ def main():
     parser.add_argument("--grounding-sam-text-prompt", type=str, help="Text prompt (comma-separated labels) for GroundingSAM", metavar='TEXT')
     parser.add_argument("--grounding-sam-return-type", type=str, choices=["image", "json"], default="image", help="Return type: image (PNG stream) or json (paths)", metavar='RET')
     parser.add_argument("--grounding-sam-output-dir", type=str, help="Container path to save masks when using return_type=json", metavar='OUT_DIR')
+    # Inpaint-Anything (object removal)
+    parser.add_argument("--inpaint-remove-image-path", type=str, help="Container path to image for Inpaint-Anything removal", metavar='IMG_PATH')
+    parser.add_argument("--inpaint-remove-point-coords", type=str, help="Point coordinates as 'x,y' for object removal", metavar='COORDS')
+    parser.add_argument("--inpaint-remove-mask-path", type=str, help="Container path to mask image (alternative to point_coords)", metavar='MASK_PATH')
+    parser.add_argument("--inpaint-remove-dilate-kernel-size", type=int, default=10, help="Dilate kernel size for mask expansion", metavar='SIZE')
+    parser.add_argument("--inpaint-remove-return-type", type=str, choices=["image", "json"], default="image", help="Return type: image (PNG stream) or json (paths)", metavar='RET')
+    parser.add_argument("--inpaint-remove-output-dir", type=str, help="Container path to save results when using return_type=json", metavar='OUT_DIR')
     # Image Edit Judge (evaluate image editing quality)
     parser.add_argument("--image-edit-judge-original-path", type=str, help="Original image path for edit judge evaluation", metavar='ORIGINAL_PATH')
     parser.add_argument("--image-edit-judge-edited-path", type=str, help="Edited image path for edit judge evaluation", metavar='EDITED_PATH')
@@ -1020,6 +1027,50 @@ def main():
                 'error': getattr(result, 'error_message', ''),
                 'num_instances': getattr(result, 'num_instances', None),
                 'mask_paths': getattr(result, 'mask_paths', []),
+                'content': getattr(result, 'content', ''),
+            })
+        elif args.inpaint_remove_image_path or args.inpaint_remove_point_coords or args.inpaint_remove_mask_path:
+            # Prepare container path mapping
+            def to_container_path(p: str) -> str:
+                if not p:
+                    return p
+                if p.startswith('/app_sci/'):
+                    return p
+                if not p.startswith('/'):
+                    return os.path.join('/app_sci', p)
+                return p
+
+            img_path = to_container_path(args.inpaint_remove_image_path or "")
+            mask_path = to_container_path(args.inpaint_remove_mask_path or "") if args.inpaint_remove_mask_path else None
+            
+            if not img_path:
+                print("Error: --inpaint-remove-image-path is required")
+                return
+            
+            if not args.inpaint_remove_point_coords and not mask_path:
+                print("Error: Either --inpaint-remove-point-coords or --inpaint-remove-mask-path is required")
+                return
+
+            # Pass output_dir THROUGH UNCHANGED so it can be a valid path on the Inpaint-Anything host
+            output_dir_host = args.inpaint_remove_output_dir or None
+
+            # Build action
+            action = InpaintRemoveAction(
+                image_path=img_path,
+                point_coords=args.inpaint_remove_point_coords,
+                mask_path=mask_path,
+                dilate_kernel_size=args.inpaint_remove_dilate_kernel_size,
+                return_type="json",  # Always request JSON from the external API
+                output_dir=output_dir_host,
+            )
+            # Execute
+            result = runtime.inpaint_remove(action)
+            print({
+                'success': getattr(result, 'success', False),
+                'error': getattr(result, 'error_message', ''),
+                'num_masks': getattr(result, 'num_masks', 0),
+                'mask_paths': getattr(result, 'mask_paths', []),
+                'result_paths': getattr(result, 'result_paths', []),
                 'content': getattr(result, 'content', ''),
             })
         elif args.task_graph:
