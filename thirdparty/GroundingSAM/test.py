@@ -55,4 +55,4 @@ if masks is not None:
         Image.fromarray(m_uint8).save(str(out_dir / f"mask_{i}.png"))
 
 # label all images in a folder called `context_images`
-base_model.label("./context_images", extension=".png")
+# base_model.label("./context_images", extension=".png")
