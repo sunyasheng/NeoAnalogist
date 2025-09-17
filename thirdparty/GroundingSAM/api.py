@@ -141,10 +141,10 @@ async def grounding_sam_segment(
 
         # Instantiate model per request (simple & robust)
         device = "cuda" if (torch.cuda.is_available() and os.environ.get("CUDA_VISIBLE_DEVICES", "") != "-1") else "cpu"
+        # autodistill-grounded-sam expects weights via environment variables;
+        # do not pass grounded_dino_checkpoint/sam_checkpoint as kwargs.
         model = GroundedSAM(
             ontology=ontology,
-            grounded_dino_checkpoint=os.environ.get("GROUNDING_DINO_CHECKPOINT"),
-            sam_checkpoint=os.environ.get("SAM_CHECKPOINT"),
             box_threshold=box_threshold,
             text_threshold=text_threshold,
             device=device,
