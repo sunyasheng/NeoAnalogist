@@ -68,7 +68,7 @@ def inpaint_img_with_lama(
     batch['image'] = pad_tensor_to_modulo(batch['image'], mod)
     batch['mask'] = pad_tensor_to_modulo(batch['mask'], mod)
     batch = move_to_device(batch, device)
-    batch['mask'] = (batch['mask'] > 0) * 1
+    batch['mask'] = (batch['mask'] > 0).float()
 
     batch = model(batch)
     cur_res = batch[predict_config.out_key][0].permute(1, 2, 0)
@@ -132,7 +132,7 @@ def inpaint_img_with_builded_lama(
     batch['image'] = pad_tensor_to_modulo(batch['image'], mod)
     batch['mask'] = pad_tensor_to_modulo(batch['mask'], mod)
     batch = move_to_device(batch, device)
-    batch['mask'] = (batch['mask'] > 0) * 1
+    batch['mask'] = (batch['mask'] > 0).float()
 
     batch = model(batch)
     cur_res = batch["inpainted"][0].permute(1, 2, 0)

@@ -190,7 +190,7 @@ async def remove_object(
                 content={"success": False, "error": "Either point_coords or mask must be provided"}
             )
         
-        if not masks:
+        if masks is None or len(masks) == 0:
             return JSONResponse(
                 status_code=404,
                 content={"success": False, "error": "No masks found"}
@@ -198,6 +198,8 @@ async def remove_object(
         
         # Dilate masks to avoid edge effects
         if dilate_kernel_size > 0:
+            if INPAINT_DEBUG:
+                print(f"[DEBUG] Dilating {len(masks)} masks with kernel size {dilate_kernel_size}")
             masks = [dilate_mask(mask, dilate_kernel_size) for mask in masks]
         
         # Inpaint each mask
@@ -221,6 +223,10 @@ async def remove_object(
                     print(f"[ERROR] LaMa model not loaded, skipping mask {i}")
                     continue
                 
+                if INPAINT_DEBUG:
+                    print(f"[DEBUG] Inpainting mask {i}, shape: {mask.shape}, dtype: {mask.dtype}")
+                    print(f"[DEBUG] Image shape: {img.shape}, dtype: {img.dtype}")
+                
                 # Use the preloaded model
                 from lama_inpaint import inpaint_img_with_builded_lama
                 inpainted_img = inpaint_img_with_builded_lama(
@@ -239,7 +245,7 @@ async def remove_object(
                 print(f"[ERROR] Failed to inpaint mask {i}: {str(e)}")
                 continue
         
-        if not inpainted_images:
+        if len(inpainted_images) == 0:
             return JSONResponse(
                 status_code=500,
                 content={"success": False, "error": "Failed to inpaint any masks"}
