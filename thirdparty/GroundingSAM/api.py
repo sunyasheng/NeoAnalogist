@@ -80,8 +80,27 @@ async def grounding_sam_segment(
             Image.fromarray(image_np).save(tmp.name)
             results = model.predict(tmp.name)
 
-        import pdb; pdb.set_trace()
-        masks = getattr(results, "masks", []) or []
+        # Normalize masks from results
+        masks: List[np.ndarray] = []
+        if hasattr(results, "masks") and results.masks is not None:
+            # autodistill style: list/array of (H, W) boolean/uint8 masks
+            rm = results.masks
+            if isinstance(rm, list):
+                masks = rm
+            else:
+                # numpy array: (N, H, W) or (H, W)
+                arr = np.asarray(rm)
+                if arr.ndim == 3:
+                    masks = [arr[i] for i in range(arr.shape[0])]
+                elif arr.ndim == 2:
+                    masks = [arr]
+        elif hasattr(results, "mask") and results.mask is not None:
+            # some versions expose singular 'mask'
+            arr = np.asarray(results.mask)
+            if arr.ndim == 3:
+                masks = [arr[i] for i in range(arr.shape[0])]
+            elif arr.ndim == 2:
+                masks = [arr]
         num = len(masks)
 
         # Default: stream first mask
