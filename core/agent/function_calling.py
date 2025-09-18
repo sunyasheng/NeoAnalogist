@@ -192,8 +192,9 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     point_coords=None,
                     mask_path=arguments.get("mask_path", None),
                     dilate_kernel_size=arguments.get("dilate_kernel_size", 0),
-                    return_type="json",
+                    return_type="image",
                     output_dir=arguments.get("output_dir", None),
+                    output_path=arguments.get("output_path", None),
                     thought=thought,
                 )
                 action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)

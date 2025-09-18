@@ -10,10 +10,10 @@ InpaintRemoveTool: ChatCompletionToolParam = {
     "type": "function",
     "function": {
         "name": "inpaint_remove",
-        "description": (
+            "description": (
             "Remove objects from images using Inpaint-Anything (LaMa). "
             "Provide one input image and one binary mask; an optional dilate_kernel_size controls edge expansion. "
-            "Returns JSON with output image path(s)."
+            "Streams PNG and saves to output_path or under output_dir."
         ),
         "parameters": {
             "type": "object",
@@ -30,6 +30,14 @@ InpaintRemoveTool: ChatCompletionToolParam = {
                     "type": "integer",
                     "description": "Dilate kernel size for mask expansion to avoid edge artifacts (default: 0)",
                     "default": 0,
+                },
+                "output_dir": {
+                    "type": "string",
+                    "description": "Directory to save streamed output (will save as inpainted_0.png if output_path not provided).",
+                },
+                "output_path": {
+                    "type": "string",
+                    "description": "Explicit file path to save streamed output PNG.",
                 },
                 "timeout": {
                     "type": "integer",
