@@ -28,13 +28,14 @@ from core.agent.tools.got_edit import GoTEditTool
 from core.agent.tools.anydoor_edit import AnyDoorEditTool
 from core.agent.tools.grounding_sam import GroundingSAMTool
 from core.agent.tools.inpaint_remove import InpaintRemoveTool
+from core.agent.tools.sdxl_inpaint import SDXLInpaintTool
 from core.agent.tools.qwen_api import QwenAPITool
 from core.agent.tools.image_edit_judge import ImageEditJudgeTool
 from core.events.action import (Action, AgentFinishAction, AgentThinkAction,
                                 BrowseInteractiveAction, BrowseURLAction,
                                 CmdRunAction, FileEditAction, FileReadAction,
                                 MessageAction, TaskGraphBuildAction, RepoPlanAction, RepoCreateAction, RepoAnalyzerAction, RepoUpdateAction, RepoVerifyAction, RepoRunAction, PaperReproductionAnalyzerAction, RepoDebugAction, RepoEditAction, PDFQueryAction, IPythonRunCellAction, RepoJudgeAction, PaperRubricAction, ExperimentManagerAction)
-from core.events.action.image import QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction
+from core.events.action.image import QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, SDXLInpaintAction
 from core.events.event import FileEditSource, FileReadSource, ToolCallMetadata
 
 
@@ -196,6 +197,23 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     return_type="image",
                     output_dir=arguments.get("output_dir", None),
                     output_path=arguments.get("output_path", None),
+                    thought=thought,
+                )
+                action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
+            # ================================================
+            # SDXLInpaintTool
+            # ================================================
+            elif tool_call.function.name == SDXLInpaintTool["function"]["name"]:
+                action = SDXLInpaintAction(
+                    image_path=arguments.get("image_path", ""),
+                    mask_path=arguments.get("mask_path", ""),
+                    prompt=arguments.get("prompt", ""),
+                    negative_prompt=arguments.get("negative_prompt", ""),
+                    guidance_scale=arguments.get("guidance_scale", 8.0),
+                    num_inference_steps=arguments.get("num_inference_steps", 20),
+                    strength=arguments.get("strength", 0.99),
+                    seed=arguments.get("seed", None),
+                    output_path=arguments.get("output_path", ""),
                     thought=thought,
                 )
                 action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
@@ -574,6 +592,7 @@ def get_tools(
         AnyDoorEditTool,
         GroundingSAMTool,
         InpaintRemoveTool,
+        SDXLInpaintTool,
         ImageEditJudgeTool,
         # IPythonTool,
         

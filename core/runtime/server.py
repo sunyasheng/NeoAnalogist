@@ -80,12 +80,13 @@ from core.runtime.tasks.repo_edit import RepoEditTask
 from core.runtime.tasks.pdf_query_task import PDFQueryTool
 from core.events.observation.repo import RepoEditObservation
 from core.runtime.plugins.jupyter import JupyterPlugin
-from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, InpaintRemoveAction
-from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation, GroundingSAMObservation, InpaintRemoveObservation
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, InpaintRemoveAction, SDXLInpaintAction
+from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation, GroundingSAMObservation, InpaintRemoveObservation, SDXLInpaintObservation
 from core.events.observation.repo import GoTEditObservation, QwenAPIObservation, AnyDoorEditObservation
 from core.runtime.tasks.image_entity_extract import ImageEntityExtractTask
 from core.runtime.tasks.got_edit import GoTEditClient
 from core.runtime.tasks.qwen_api import QwenAPIClient
+from core.runtime.tasks.sdxl_inpaint import SDXLInpaintClient
 
 
 logger = get_logger(__name__)
@@ -1332,6 +1333,53 @@ class ActionExecutor:
         except Exception as e:
             logger.error(f"Error in inpaint_remove: {str(e)}")
             return InpaintRemoveObservation(success=False, error_message=f"Failed to run Inpaint-Anything: {str(e)}")
+
+    async def sdxl_inpaint(self, action: SDXLInpaintAction) -> SDXLInpaintObservation:
+        """Call SDXL Inpainting API from inside container using the task client.
+        Expects container-absolute paths.
+        """
+        try:
+            import time
+            start_time = time.time()
+            
+            # Use environment variable for base URL or default
+            base_url = os.environ.get("SDXL_INPAINT_BASE_URL", "http://10.64.74.69:8402")
+            client = SDXLInpaintClient(base_url=base_url)
+
+            if not action.image_path or not action.mask_path or not action.prompt:
+                return SDXLInpaintObservation(
+                    success=False, 
+                    error_message="image_path, mask_path, and prompt are required"
+                )
+
+            # Call the SDXL inpainting client
+            output_path = client.inpaint(
+                image_path=action.image_path,
+                mask_path=action.mask_path,
+                prompt=action.prompt,
+                negative_prompt=action.negative_prompt,
+                guidance_scale=action.guidance_scale,
+                num_inference_steps=action.num_inference_steps,
+                strength=action.strength,
+                seed=action.seed,
+                output_path=action.output_path,
+                timeout=600,
+            )
+            
+            execution_time = time.time() - start_time
+            
+            return SDXLInpaintObservation(
+                content=f"SDXL inpainting completed: '{action.prompt}'",
+                output_path=output_path,
+                success=True,
+                execution_time=execution_time,
+            )
+        except Exception as e:
+            logger.error(f"Error in sdxl_inpaint: {str(e)}")
+            return SDXLInpaintObservation(
+                success=False, 
+                error_message=f"Failed to run SDXL inpainting: {str(e)}"
+            )
 
     async def image_edit_judge(self, action: ImageEditJudgeAction) -> ImageEditJudgeObservation:
         """Judge image editing quality using AnyBench metrics.

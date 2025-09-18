@@ -83,3 +83,16 @@ class InpaintRemoveObservation(Observation):
             self.result_paths = []
 
 
+@dataclass
+class SDXLInpaintObservation(Observation):
+    """Observation for SDXL inpainting operation."""
+    
+    content: str = ""
+    output_path: str = ""
+    success: bool = False
+    error_message: str = ""
+    observation: str = "sdxl_inpaint"
+    execution_time: float = 0.0
+    model_info: str = "stable-diffusion-xl-1.0-inpainting-0.1"
+
+
