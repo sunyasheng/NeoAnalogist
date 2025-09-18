@@ -177,8 +177,9 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                 action = GroundingSAMAction(
                     image_path=arguments.get("image_path", ""),
                     text_prompt=arguments.get("text_prompt", ""),
-                    return_type=arguments.get("return_type", "json"),
-                    output_dir=arguments.get("output_dir", None),
+                    return_type="image",
+                    output_dir=None,
+                    output_path=arguments.get("output_path", None),
                     thought=thought,
                 )
                 action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)

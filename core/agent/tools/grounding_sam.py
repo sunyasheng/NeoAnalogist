@@ -11,10 +11,10 @@ GroundingSAMTool: ChatCompletionToolParam = {
     "type": "function",
     "function": {
         "name": "grounding_sam_segment",
-        "description": (
+            "description": (
             "Text-prompted instance segmentation using GroundingSAM (Florence2+SAM2). "
             "Provide container-absolute image path and comma-separated text prompt labels. "
-            "When return_type is json and output_dir is provided, masks are saved to that directory."
+            "Streams PNG and saves to output_path."
         ),
         "parameters": {
             "type": "object",
@@ -27,15 +27,9 @@ GroundingSAMTool: ChatCompletionToolParam = {
                     "type": "string",
                     "description": "Comma-separated labels, e.g., 'person,car'.",
                 },
-                "return_type": {
+                "output_path": {
                     "type": "string",
-                    "description": "Return type from external API: 'image' (PNG stream) or 'json' (paths).",
-                    "enum": ["image", "json"],
-                    "default": "json",
-                },
-                "output_dir": {
-                    "type": "string",
-                    "description": "Host-absolute directory to save masks when return_type=json.",
+                    "description": "Explicit file path to save streamed mask PNG.",
                 },
                 "timeout": {
                     "type": "integer",
