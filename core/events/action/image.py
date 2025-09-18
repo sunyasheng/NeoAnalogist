@@ -122,7 +122,8 @@ class GroundingSAMAction(Action):
     text_prompt: str = ""
     # Optional knobs (currently handled on server side / API defaults)
     return_type: str = "image"  # image | json (prefer streaming PNG; server defaults to image)
-    output_dir: Optional[str] = None
+    output_dir: Optional[str] = None  # If set in streaming mode, treated as directory unless output_path is provided
+    output_path: Optional[str] = None  # Optional explicit file path to save streamed PNG
     thought: str = ""
 
     action: str = "grounding_sam"
