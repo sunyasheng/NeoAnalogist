@@ -1267,41 +1267,32 @@ class ActionExecutor:
             return GroundingSAMObservation(success=False, error_message=f"Failed to run GroundingSAM: {str(e)}")
 
     async def inpaint_remove(self, action: InpaintRemoveAction) -> InpaintRemoveObservation:
-        """Call Inpaint-Anything API with streaming image response and save to desired path/dir."""
+        """Call LAMA API with streaming image response and save to desired path/dir."""
         try:
             import requests
-            base_url = os.environ.get("INPAINT_ANYTHING_BASE_URL", "http://10.64.74.69:8601")
-            url = f"{base_url.rstrip('/')}/inpaint/remove"
+            base_url = os.environ.get("LAMA_BASE_URL", "http://10.64.74.69:8602")
+            url = f"{base_url.rstrip('/')}/inpaint/simple"
 
             if not action.image_path:
                 return InpaintRemoveObservation(success=False, error_message="image_path is required")
 
-            if not action.point_coords and not action.mask_path:
-                return InpaintRemoveObservation(success=False, error_message="Either point_coords or mask_path must be provided")
+            if not action.mask_path:
+                return InpaintRemoveObservation(success=False, error_message="mask_path is required for LAMA inpainting")
 
+            # LAMA API only supports mask-based inpainting, not point coordinates
             files = {
                 "image": open(action.image_path, "rb"),
+                "mask": open(action.mask_path, "rb"),
             }
-            data = {
-                "point_labels": action.point_labels,
-                "dilate_kernel_size": str(action.dilate_kernel_size),
-                "return_type": "image",  # force streaming
-            }
-            
-            if action.point_coords:
-                data["point_coords"] = action.point_coords
-            if action.mask_path:
-                files["mask"] = open(action.mask_path, "rb")
 
             try:
-                resp = requests.post(url, files=files, data=data, timeout=600, stream=True)
+                resp = requests.post(url, files=files, timeout=600, stream=True)
                 resp.raise_for_status()
                 img_bytes = resp.content
             finally:
                 try:
                     files["image"].close()
-                    if "mask" in files:
-                        files["mask"].close()
+                    files["mask"].close()
                 except Exception:
                     pass
 
@@ -1323,7 +1314,7 @@ class ActionExecutor:
                 logger.warning(f"Failed to save streamed inpaint result: {_save_err}")
 
             return InpaintRemoveObservation(
-                content="Inpaint-Anything remove completed",
+                content="LAMA inpainting completed",
                 num_masks=1,
                 mask_paths=[action.mask_path] if action.mask_path else [],
                 result_paths=[saved_result] if saved_result else [],
@@ -1331,7 +1322,7 @@ class ActionExecutor:
             )
         except Exception as e:
             logger.error(f"Error in inpaint_remove: {str(e)}")
-            return InpaintRemoveObservation(success=False, error_message=f"Failed to run Inpaint-Anything: {str(e)}")
+            return InpaintRemoveObservation(success=False, error_message=f"Failed to run LAMA inpainting: {str(e)}")
 
     async def image_edit_judge(self, action: ImageEditJudgeAction) -> ImageEditJudgeObservation:
         """Judge image editing quality using AnyBench metrics.
