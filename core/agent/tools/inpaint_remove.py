@@ -11,9 +11,9 @@ InpaintRemoveTool: ChatCompletionToolParam = {
     "function": {
         "name": "inpaint_remove",
         "description": (
-            "Remove objects from images using Inpaint-Anything (SAM + LaMa). "
-            "Provide either point coordinates to click on an object, or a mask image. "
-            "Returns inpainted image paths if output_dir is provided, otherwise streams the first result as PNG."
+            "Remove objects from images using Inpaint-Anything (LaMa). "
+            "Provide one input image and one binary mask; an optional dilate_kernel_size controls edge expansion. "
+            "Returns JSON with output image path(s)."
         ),
         "parameters": {
             "type": "object",
@@ -22,28 +22,14 @@ InpaintRemoveTool: ChatCompletionToolParam = {
                     "type": "string",
                     "description": "Container-absolute path to the input image.",
                 },
-                "point_coords": {
-                    "type": "string",
-                    "description": "Point coordinates as 'x,y' to click on object for removal (e.g., '200,300'). Alternative to mask_path.",
-                },
                 "mask_path": {
                     "type": "string",
-                    "description": "Container-absolute path to mask image for object removal. Alternative to point_coords.",
+                    "description": "Container-absolute path to the binary mask image (white=remove).",
                 },
                 "dilate_kernel_size": {
                     "type": "integer",
-                    "description": "Dilate kernel size for mask expansion to avoid edge effects (default: 10)",
-                    "default": 10,
-                },
-                "return_type": {
-                    "type": "string",
-                    "enum": ["image", "json"],
-                    "default": "image",
-                    "description": "Return type: 'image' (PNG stream of first result) or 'json' (list of result paths).",
-                },
-                "output_dir": {
-                    "type": "string",
-                    "description": "Host-absolute path to save results when return_type is 'json'. If not provided, results are saved to a temporary cache.",
+                    "description": "Dilate kernel size for mask expansion to avoid edge artifacts (default: 0)",
+                    "default": 0,
                 },
                 "timeout": {
                     "type": "integer",
@@ -51,7 +37,7 @@ InpaintRemoveTool: ChatCompletionToolParam = {
                     "default": 600,
                 },
             },
-            "required": ["image_path"],
+            "required": ["image_path", "mask_path"],
         },
     },
 }

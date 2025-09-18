@@ -189,10 +189,10 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                 from core.events.action.image import InpaintRemoveAction
                 action = InpaintRemoveAction(
                     image_path=arguments.get("image_path", ""),
-                    point_coords=arguments.get("point_coords", None),
+                    point_coords=None,
                     mask_path=arguments.get("mask_path", None),
-                    dilate_kernel_size=arguments.get("dilate_kernel_size", 10),
-                    return_type=arguments.get("return_type", "image"),
+                    dilate_kernel_size=arguments.get("dilate_kernel_size", 0),
+                    return_type="json",
                     output_dir=arguments.get("output_dir", None),
                     thought=thought,
                 )
@@ -568,15 +568,16 @@ def get_tools(
         create_cmd_run_tool(use_simplified_description=use_simplified_tool_desc),
         ThinkTool,
         FinishTool,
-        # ImageEntityExtractTool,
         GoTEditTool,
         AnyDoorEditTool,
         GroundingSAMTool,
         InpaintRemoveTool,
         ImageEditJudgeTool,
-        # QwenAPITool,
+        # IPythonTool,
+        
+        # QwenAPITool, # Not accurate
+        # ImageEntityExtractTool,
         # PDFQueryTool,
-        IPythonTool,
         # PaperRubricTool,
         # RepoCreateTool,
         # RepoEditTool,

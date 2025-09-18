@@ -331,3 +331,10 @@ if __name__ == "__main__":
     
     print(f"[Inpaint-Anything] Starting server on {args.host}:{args.port}")
     uvicorn.run(app, host=args.host, port=args.port, reload=args.reload)
+
+
+#### 1st Mode
+#### curl -X POST http://localhost:8601/inpaint/remove   -F "image=@anydoor_result.png"   -F "point_coords=260,300"   -F "point_labels=1"   -F "dilate_kernel_size=5"   -F "return_type=json"   -F "output_dir=/home/suny0a/Proj/ImageBrush/out_dir"
+
+#### 2nd Mode, the kernel can be set to different values
+#### curl -X POST http://localhost:8601/inpaint/remove   -F "image=@anydoor_result.png"   -F "mask=@/home/suny0a/Proj/ImageBrush/out_dir/mask_2.png"   -F "dilate_kernel_size=0"   -F "return_type=image"   --output /home/suny0a/Proj/ImageBrush/inpainted_final.png
