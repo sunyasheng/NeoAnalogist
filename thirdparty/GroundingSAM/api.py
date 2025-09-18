@@ -124,12 +124,18 @@ async def grounding_sam_segment(
         # Also save to user-provided output_dir if specified
         output_mask_paths: List[str] = []
         if output_dir:
-            os.makedirs(output_dir, exist_ok=True)
+            # Sanitize and prefer a local outputs root for safety
+            safe_dir = os.path.normpath(os.path.expanduser(output_dir))
+            if os.path.isabs(safe_dir):
+                # Place absolute requests under a local outputs root instead
+                safe_dir = os.path.join("./outputs/grounding_sam", safe_dir.lstrip(os.sep))
+            os.makedirs(safe_dir, exist_ok=True)
             for i, m in enumerate(masks):
                 arr = (m.astype("uint8") * 255)
-                out_path = os.path.join(output_dir, f"mask_{i}.png")
+                out_path = os.path.join(safe_dir, f"mask_{i}.png")
                 Image.fromarray(arr).save(out_path)
                 output_mask_paths.append(out_path)
+
         # Prefer returning user-specified output paths if provided; otherwise return temp cache paths
         response_paths = output_mask_paths if output_mask_paths else cache_mask_paths
         return {"success": True, "num_instances": num, "mask_paths": response_paths}
