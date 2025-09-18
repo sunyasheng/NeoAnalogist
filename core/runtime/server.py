@@ -1251,14 +1251,10 @@ class ActionExecutor:
                         saved_path = out_path
                 except Exception as _save_err:
                     logger.warning(f"Failed to save streamed mask: {_save_err}")
-                # Also encode to base64 for immediate preview
-                b64 = _b64.b64encode(img_bytes).decode("utf-8")
-                data_url = f"data:{content_type};base64,{b64}"
                 return GroundingSAMObservation(
                     content="GroundingSAM segmentation (stream) completed",
                     num_instances=1 if img_bytes else 0,
                     mask_paths=[saved_path] if saved_path else [],
-                    image_b64=data_url,
                     success=True,
                 )
             finally:
@@ -1271,9 +1267,7 @@ class ActionExecutor:
             return GroundingSAMObservation(success=False, error_message=f"Failed to run GroundingSAM: {str(e)}")
 
     async def inpaint_remove(self, action: InpaintRemoveAction) -> InpaintRemoveObservation:
-        """Call Inpaint-Anything API from inside container using an HTTP client.
-        Expects container-absolute image path.
-        """
+        """Call Inpaint-Anything API with streaming image response and save to desired path/dir."""
         try:
             import requests
             base_url = os.environ.get("INPAINT_ANYTHING_BASE_URL", "http://10.64.74.69:8601")
@@ -1291,19 +1285,18 @@ class ActionExecutor:
             data = {
                 "point_labels": action.point_labels,
                 "dilate_kernel_size": str(action.dilate_kernel_size),
-                "return_type": "json",
+                "return_type": "image",  # force streaming
             }
             
             if action.point_coords:
                 data["point_coords"] = action.point_coords
             if action.mask_path:
                 files["mask"] = open(action.mask_path, "rb")
-            if action.output_dir:
-                data["output_dir"] = action.output_dir
 
             try:
-                resp = requests.post(url, files=files, data=data, timeout=600)
+                resp = requests.post(url, files=files, data=data, timeout=600, stream=True)
                 resp.raise_for_status()
+                img_bytes = resp.content
             finally:
                 try:
                     files["image"].close()
@@ -1312,21 +1305,30 @@ class ActionExecutor:
                 except Exception:
                     pass
 
-            js = resp.json()
-            if js.get("success"):
-                return InpaintRemoveObservation(
-                    content="Inpaint-Anything remove completed",
-                    num_masks=js.get("num_masks", 0),
-                    mask_paths=js.get("mask_paths", []),
-                    result_paths=js.get("result_paths", []),
-                    success=True,
-                )
-            else:
-                return InpaintRemoveObservation(
-                    content="Inpaint-Anything remove failed",
-                    success=False,
-                    error_message=js.get("error", "Unknown error"),
-                )
+            # Save streamed result to output_path or output_dir
+            saved_result = ""
+            try:
+                if action.output_path:
+                    out_path = action.output_path
+                elif action.output_dir:
+                    os.makedirs(action.output_dir, exist_ok=True)
+                    out_path = os.path.join(action.output_dir, "inpainted_0.png")
+                else:
+                    out_path = ""
+                if out_path:
+                    with open(out_path, "wb") as f:
+                        f.write(img_bytes)
+                    saved_result = out_path
+            except Exception as _save_err:
+                logger.warning(f"Failed to save streamed inpaint result: {_save_err}")
+
+            return InpaintRemoveObservation(
+                content="Inpaint-Anything remove completed",
+                num_masks=1,
+                mask_paths=[action.mask_path] if action.mask_path else [],
+                result_paths=[saved_result] if saved_result else [],
+                success=True,
+            )
         except Exception as e:
             logger.error(f"Error in inpaint_remove: {str(e)}")
             return InpaintRemoveObservation(success=False, error_message=f"Failed to run Inpaint-Anything: {str(e)}")

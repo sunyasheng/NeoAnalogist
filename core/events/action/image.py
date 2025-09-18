@@ -167,8 +167,9 @@ class InpaintRemoveAction(Action):
     point_labels: str = "1"  # "1" for foreground, "0" for background
     mask_path: Optional[str] = None  # Optional mask image path
     dilate_kernel_size: int = 10
-    return_type: str = "json"  # "image" (stream first result) | "json" (return paths)
-    output_dir: Optional[str] = None  # Container path to save results if return_type is json
+    return_type: str = "image"  # "image" (stream first result) | "json" (return paths)
+    output_dir: Optional[str] = None  # When streaming, treated as directory unless output_path is provided
+    output_path: Optional[str] = None  # Explicit file path to save streamed result PNG
     thought: str = ""
 
     action: str = "inpaint_remove"

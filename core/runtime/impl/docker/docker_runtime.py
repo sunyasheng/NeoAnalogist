@@ -1054,13 +1054,13 @@ def main():
             # Pass output_dir THROUGH UNCHANGED so it can be a valid path on the Inpaint-Anything host
             output_dir_host = args.inpaint_remove_output_dir or None
 
-            # Build action
+            # Build action: request streaming image and save to output_dir (or mask path if provided)
             action = InpaintRemoveAction(
                 image_path=img_path,
                 point_coords=args.inpaint_remove_point_coords,
                 mask_path=mask_path,
                 dilate_kernel_size=args.inpaint_remove_dilate_kernel_size,
-                return_type="json",  # Always request JSON from the external API
+                return_type="image",
                 output_dir=output_dir_host,
             )
             # Execute
