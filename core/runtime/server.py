@@ -1225,60 +1225,42 @@ class ActionExecutor:
                 "text_prompt": action.text_prompt,
                 "return_type": action.return_type or "image",
             }
-            if action.output_dir and (action.return_type or "image") == "json":
-                data["output_dir"] = action.output_dir
+            # Always request streaming image response; JSON mode is not supported
+            data["return_type"] = "image"
 
             try:
                 # Stream when expecting image
-                if data["return_type"] == "image":
-                    resp = requests.post(url, files=files, data=data, timeout=600, stream=True)
-                    resp.raise_for_status()
-                    # Read content bytes
-                    content_type = resp.headers.get("Content-Type", "image/png")
-                    img_bytes = resp.content
-                    # If caller provided output_path or output_dir, save file accordingly
-                    saved_path = ""
-                    try:
-                        if action.output_path:
-                            out_path = action.output_path
-                        elif action.output_dir:
-                            os.makedirs(action.output_dir, exist_ok=True)
-                            out_path = os.path.join(action.output_dir, "mask_0.png")
-                        else:
-                            out_path = ""
-                        if out_path:
-                            with open(out_path, "wb") as f:
-                                f.write(img_bytes)
-                            saved_path = out_path
-                    except Exception as _save_err:
-                        logger.warning(f"Failed to save streamed mask: {_save_err}")
-                    # Also encode to base64 for immediate preview
-                    b64 = _b64.b64encode(img_bytes).decode("utf-8")
-                    data_url = f"data:{content_type};base64,{b64}"
-                    return GroundingSAMObservation(
-                        content="GroundingSAM segmentation (stream) completed",
-                        num_instances=1 if img_bytes else 0,
-                        mask_paths=[saved_path] if saved_path else [],
-                        image_b64=data_url,
-                        success=True,
-                    )
-                else:
-                    resp = requests.post(url, files=files, data=data, timeout=600)
-                    resp.raise_for_status()
-                    js = resp.json()
-                    if js.get("success"):
-                        return GroundingSAMObservation(
-                            content="GroundingSAM segmentation completed",
-                            num_instances=js.get("num_instances", 0),
-                            mask_paths=js.get("mask_paths", []),
-                            success=True,
-                        )
+                resp = requests.post(url, files=files, data=data, timeout=600, stream=True)
+                resp.raise_for_status()
+                # Read content bytes
+                content_type = resp.headers.get("Content-Type", "image/png")
+                img_bytes = resp.content
+                # If caller provided output_path or output_dir, save file accordingly
+                saved_path = ""
+                try:
+                    if action.output_path:
+                        out_path = action.output_path
+                    elif action.output_dir:
+                        os.makedirs(action.output_dir, exist_ok=True)
+                        out_path = os.path.join(action.output_dir, "mask_0.png")
                     else:
-                        return GroundingSAMObservation(
-                            content="GroundingSAM segmentation failed",
-                            success=False,
-                            error_message=js.get("error", "Unknown error"),
-                        )
+                        out_path = ""
+                    if out_path:
+                        with open(out_path, "wb") as f:
+                            f.write(img_bytes)
+                        saved_path = out_path
+                except Exception as _save_err:
+                    logger.warning(f"Failed to save streamed mask: {_save_err}")
+                # Also encode to base64 for immediate preview
+                b64 = _b64.b64encode(img_bytes).decode("utf-8")
+                data_url = f"data:{content_type};base64,{b64}"
+                return GroundingSAMObservation(
+                    content="GroundingSAM segmentation (stream) completed",
+                    num_instances=1 if img_bytes else 0,
+                    mask_paths=[saved_path] if saved_path else [],
+                    image_b64=data_url,
+                    success=True,
+                )
             finally:
                 try:
                     files["image"].close()
