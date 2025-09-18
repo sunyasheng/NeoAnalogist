@@ -184,28 +184,3 @@ class InpaintRemoveAction(Action):
         else:
             return f"Inpaint remove on {self.image_path}"
 
-
-@dataclass
-class SDXLInpaintAction(Action):
-    """High-quality image inpainting using Stable Diffusion XL.
-
-    All paths should be absolute container paths when called inside DockerRuntime server.
-    """
-    image_path: str = ""
-    mask_path: str = ""
-    prompt: str = ""
-    negative_prompt: str = ""
-    guidance_scale: float = 8.0
-    num_inference_steps: int = 20
-    strength: float = 0.99
-    seed: Optional[int] = None
-    output_path: str = ""
-    thought: str = ""
-
-    action: str = "sdxl_inpaint"
-    runnable: ClassVar[bool] = True
-
-    @property
-    def message(self) -> str:
-        return f"SDXL inpainting: '{self.prompt}' on {self.image_path} with mask {self.mask_path}"
-
