@@ -1013,12 +1013,12 @@ def main():
             # Pass output_dir THROUGH UNCHANGED so it can be a valid path on the GSAM host
             output_dir_host = args.grounding_sam_output_dir or None
 
-            # Build action including return_type and output_dir (host path)
+            # Build action preferring streaming image; only set output_dir when asking for JSON
             action = GroundingSAMAction(
                 image_path=img_path,
                 text_prompt=args.grounding_sam_text_prompt,
-                return_type="json",
-                output_dir=output_dir_host,
+                return_type="image" if not args.grounding_sam_output_dir else "json",
+                output_dir=output_dir_host if args.grounding_sam_output_dir else None,
             )
             # Execute
             result = runtime.grounding_sam(action)

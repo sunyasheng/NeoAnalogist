@@ -56,6 +56,8 @@ class GroundingSAMObservation(Observation):
     success: bool = False
     error_message: str = ""
     observation: str = "GROUNDING_SAM"
+    # When using streaming response (PNG), we return base64 data URL of the first mask
+    image_b64: str = ""
 
     def __post_init__(self):
         if self.mask_paths is None:

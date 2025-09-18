@@ -121,7 +121,7 @@ class GroundingSAMAction(Action):
     image_path: str = ""
     text_prompt: str = ""
     # Optional knobs (currently handled on server side / API defaults)
-    return_type: str = "json"  # image | json (server defaults to image, we prefer json in runtime)
+    return_type: str = "image"  # image | json (prefer streaming PNG; server defaults to image)
     output_dir: Optional[str] = None
     thought: str = ""
 

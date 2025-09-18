@@ -1207,10 +1207,11 @@ class ActionExecutor:
 
     async def grounding_sam(self, action: GroundingSAMAction) -> GroundingSAMObservation:
         """Call GroundingSAM API from inside container using an HTTP client.
-        Expects container-absolute image path.
+        Expects container-absolute image path. Prefer streaming PNG response by default.
         """
         try:
             import requests
+            import base64 as _b64
             base_url = os.environ.get("GROUNDING_SAM_BASE_URL", "http://10.64.74.69:8501")
             url = f"{base_url.rstrip('/')}/grounding-sam/segment"
 
@@ -1222,34 +1223,50 @@ class ActionExecutor:
             }
             data = {
                 "text_prompt": action.text_prompt,
-                "return_type": "json",
+                "return_type": action.return_type or "image",
             }
-            if action.output_dir:
+            if action.output_dir and (action.return_type or "image") == "json":
                 data["output_dir"] = action.output_dir
 
             try:
-                resp = requests.post(url, files=files, data=data, timeout=600)
-                resp.raise_for_status()
+                # Stream when expecting image
+                if data["return_type"] == "image":
+                    resp = requests.post(url, files=files, data=data, timeout=600, stream=True)
+                    resp.raise_for_status()
+                    # Read content bytes and encode as data URL
+                    content_type = resp.headers.get("Content-Type", "image/png")
+                    img_bytes = resp.content
+                    b64 = _b64.b64encode(img_bytes).decode("utf-8")
+                    data_url = f"data:{content_type};base64,{b64}"
+                    return GroundingSAMObservation(
+                        content="GroundingSAM segmentation (stream) completed",
+                        num_instances=1 if img_bytes else 0,
+                        mask_paths=[],
+                        image_b64=data_url,
+                        success=True,
+                    )
+                else:
+                    resp = requests.post(url, files=files, data=data, timeout=600)
+                    resp.raise_for_status()
+                    js = resp.json()
+                    if js.get("success"):
+                        return GroundingSAMObservation(
+                            content="GroundingSAM segmentation completed",
+                            num_instances=js.get("num_instances", 0),
+                            mask_paths=js.get("mask_paths", []),
+                            success=True,
+                        )
+                    else:
+                        return GroundingSAMObservation(
+                            content="GroundingSAM segmentation failed",
+                            success=False,
+                            error_message=js.get("error", "Unknown error"),
+                        )
             finally:
                 try:
                     files["image"].close()
                 except Exception:
                     pass
-
-            js = resp.json()
-            if js.get("success"):
-                return GroundingSAMObservation(
-                    content="GroundingSAM segmentation completed",
-                    num_instances=js.get("num_instances", 0),
-                    mask_paths=js.get("mask_paths", []),
-                    success=True,
-                )
-            else:
-                return GroundingSAMObservation(
-                    content="GroundingSAM segmentation failed",
-                    success=False,
-                    error_message=js.get("error", "Unknown error"),
-                )
         except Exception as e:
             logger.error(f"Error in grounding_sam: {str(e)}")
             return GroundingSAMObservation(success=False, error_message=f"Failed to run GroundingSAM: {str(e)}")
