@@ -1468,33 +1468,34 @@ class ActionExecutor:
             return LAMARemoveObservation(success=False, error_message=f"Failed to run LAMA object removal: {str(e)}")
 
     async def image_edit_judge(self, action: ImageEditJudgeAction) -> ImageEditJudgeObservation:
-        """Judge image editing quality using AnyBench metrics.
+        """Judge image editing quality using GPT-4o vision analysis.
         
         Evaluates the quality of image editing by comparing original and edited images
-        using CLIP-I, CLIP-T, L1/L2 distances and providing suggestions.
+        using GPT-4o vision to assess if the edit instruction was followed correctly.
         """
         try:
             from core.runtime.tasks.edit_judge import ImageEditJudgeTask
             
             # Create and run the edit judge task
-            task = ImageEditJudgeTask(use_gpt4o=True)
-            # Use input_caption as instruction for GPT-4o evaluation
-            result = await task.run(action.original_path, action.edited_path, action.input_caption, action.output_caption, action.use_qwen_analysis, action.input_caption)
+            task = ImageEditJudgeTask()
+            result = task.evaluate(action.original_path, action.edited_path, action.instruction)
             
-            # Generate feedback summary for content
-            feedback_summary = task.get_feedback_summary(result)
+            # Create content summary
+            content = f"Edit Judge Results:\n"
+            content += f"Correct: {result.is_correct}\n"
+            content += f"Score: {result.score}/10\n"
+            content += f"Feedback: {result.feedback}\n"
+            content += f"Reasoning: {result.reasoning}"
             
             return ImageEditJudgeObservation(
-                content=feedback_summary,
-                clip_i=result.clip_i,
-                clip_t=result.clip_t,
-                l1_distance=result.l1_distance,
-                l2_distance=result.l2_distance,
-                overall_score=result.overall_score,
-                suggestions=result.suggestions,
-                status=result.status,
+                content=content,
+                is_correct=result.is_correct,
+                score=result.score,
+                feedback=result.feedback,
+                reasoning=result.reasoning,
+                status="success" if result.is_correct else "partial",
                 execution_time=0.0,  # Will be set by the framework
-                error_message=result.suggestions[0] if result.status == "error" and result.suggestions else ""
+                error_message="" if result.is_correct else result.feedback
             )
         except Exception as e:
             logger.error(f"Error in image_edit_judge: {str(e)}")

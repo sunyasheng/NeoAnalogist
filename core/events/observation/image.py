@@ -26,24 +26,19 @@ class ImageEntityExtractObservation(Observation):
 class ImageEditJudgeObservation(Observation):
     """Image editing quality evaluation results.
     
-    Contains CLIP-I, CLIP-T, L1/L2 distances, overall score and suggestions.
+    Contains correctness assessment, score, feedback and reasoning.
     """
 
     content: str = ""
-    clip_i: float = 0.0
-    clip_t: float = 0.0
-    l1_distance: float = 0.0
-    l2_distance: float = 0.0
-    overall_score: float = 0.0
-    suggestions: List[str] = None  # type: ignore[assignment]
+    is_correct: bool = False
+    score: float = 0.0
+    feedback: str = ""
+    reasoning: str = ""
     status: str = "success"
     execution_time: float = 0.0
     error_message: str = ""
     observation: str = "image_edit_judge"
 
-    def __post_init__(self):
-        if self.suggestions is None:
-            self.suggestions = []
 
 
 @dataclass
