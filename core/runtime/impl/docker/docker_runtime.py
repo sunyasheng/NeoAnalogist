@@ -1619,7 +1619,7 @@ def main():
             )
             result = runtime.image_edit_judge(action)
             
-            if result.success:
+            if result.status == "success" or result.status == "partial":
                 print(f"✅ Image Edit Judge completed successfully!")
                 print(f"📊 Results:")
                 print(f"  Correct: {result.is_correct}")
