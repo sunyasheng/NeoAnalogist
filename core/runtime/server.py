@@ -1251,12 +1251,35 @@ class ActionExecutor:
                         saved_path = out_path
                 except Exception as _save_err:
                     logger.warning(f"Failed to save streamed mask: {_save_err}")
-                return GroundingSAMObservation(
-                    content="GroundingSAM segmentation (stream) completed",
-                    num_instances=1 if img_bytes else 0,
-                    mask_paths=[saved_path] if saved_path else [],
-                    success=True,
-                )
+                # Check if the image is empty (all black/zero pixels)
+                is_empty_mask = False
+                if img_bytes:
+                    try:
+                        from PIL import Image
+                        import io
+                        import numpy as np
+                        img = Image.open(io.BytesIO(img_bytes))
+                        img_array = np.array(img)
+                        # Check if all pixels are black (0)
+                        is_empty_mask = np.all(img_array == 0)
+                    except Exception:
+                        pass
+                
+                if is_empty_mask:
+                    return GroundingSAMObservation(
+                        content="No objects detected matching the text prompt",
+                        num_instances=0,
+                        mask_paths=[],
+                        success=False,
+                        error_message="No objects detected"
+                    )
+                else:
+                    return GroundingSAMObservation(
+                        content="GroundingSAM segmentation (stream) completed",
+                        num_instances=1 if img_bytes else 0,
+                        mask_paths=[saved_path] if saved_path else [],
+                        success=True,
+                    )
             finally:
                 try:
                     files["image"].close()
