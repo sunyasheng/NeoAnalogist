@@ -14,7 +14,7 @@ SDXLInpaintTool: ChatCompletionToolParam = {
         "description": (
             "High-quality text-guided image inpainting using Stable Diffusion XL. "
             "Fill masked areas with content described by text prompt. "
-            "Uses smart cropping for better results. Streams PNG and saves to output_path."
+            "Streams PNG and saves to output_path."
         ),
         "parameters": {
             "type": "object",
@@ -45,11 +45,6 @@ SDXLInpaintTool: ChatCompletionToolParam = {
                     "type": "number",
                     "description": "Strength (0.0-1.0). Use < 1.0 for better results.",
                     "default": 0.99,
-                },
-                "use_smart_crop": {
-                    "type": "boolean",
-                    "description": "Use smart cropping to focus on masked region (recommended for better results).",
-                    "default": True,
                 },
                 "seed": {
                     "type": "integer",

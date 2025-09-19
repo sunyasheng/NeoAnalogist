@@ -388,7 +388,7 @@ async def fill_object(
     seed: Optional[int] = Form(None, description="Random seed"),
     output_path: Optional[str] = Form(None, description="[Ignored] Output path is not used; response is streamed"),
     return_type: str = Form("image", description="[Ignored] Always streams PNG image"),
-    use_smart_crop: bool = Form(True, description="Use smart cropping for better results")
+    use_smart_crop: bool = Form(False, description="[Internal] Use smart cropping for better results")
 ):
     """
     Fill masked areas with text-guided content using smart cropping.
