@@ -269,8 +269,8 @@ async def inpaint_image(
     height: int = Form(DEFAULT_HEIGHT, description="Output height"),
     width: int = Form(DEFAULT_WIDTH, description="Output width"),
     seed: Optional[int] = Form(None, description="Random seed for reproducibility"),
-    output_path: Optional[str] = Form(None, description="Output path for saving result"),
-    return_type: str = Form("image", description="Return type: 'image' (stream) or 'json' (return path)")
+    output_path: Optional[str] = Form(None, description="[Ignored] Output path is not used; response is streamed"),
+    return_type: str = Form("image", description="[Ignored] Always streams PNG image")
 ):
     """
     Inpaint image using SDXL with text prompt.
@@ -278,22 +278,11 @@ async def inpaint_image(
     The mask should have white areas indicating regions to be inpainted.
     """
     try:
-        # Create temp cache dir for this request
-        temp_cache_dir = os.path.join("./tmp/sdxl_cache", f"task_{uuid.uuid4()}")
-        os.makedirs(temp_cache_dir, exist_ok=True)
-        
-        # Save uploaded files
-        input_image_path = os.path.join(temp_cache_dir, "input.png")
-        mask_image_path = os.path.join(temp_cache_dir, "mask.png")
-        
-        with open(input_image_path, "wb") as f:
-            f.write(await image.read())
-        with open(mask_image_path, "wb") as f:
-            f.write(await mask.read())
-        
-        # Load and resize images
-        input_image = load_image(input_image_path).resize((width, height))
-        mask_image = load_image(mask_image_path).resize((width, height))
+        # Read uploaded files directly from memory (no disk I/O)
+        input_bytes = await image.read()
+        mask_bytes = await mask.read()
+        input_image = Image.open(io.BytesIO(input_bytes)).convert("RGB").resize((width, height))
+        mask_image = Image.open(io.BytesIO(mask_bytes)).convert("L").resize((width, height))
         
         if SDXL_DEBUG:
             print(f"[DEBUG] Loaded image size: {input_image.size}")
@@ -334,40 +323,11 @@ async def inpaint_image(
         if SDXL_DEBUG:
             print(f"[DEBUG] Inpainting completed, result size: {inpainted_image.size}")
         
-        # Determine output path
-        if output_path:
-            # Use provided output path
-            final_output_path = output_path
-            os.makedirs(os.path.dirname(final_output_path), exist_ok=True)
-        else:
-            # Use temp cache
-            final_output_path = os.path.join(temp_cache_dir, "inpainted.png")
-        
-        # Save result
-        inpainted_image.save(final_output_path)
-        
-        # Return response
-        if return_type == "image":
-            # Stream the inpainted image
-            buf = io.BytesIO()
-            inpainted_image.save(buf, format="PNG")
-            buf.seek(0)
-            return StreamingResponse(buf, media_type="image/png")
-        else:
-            # Return JSON with path
-            return {
-                "success": True,
-                "output_path": final_output_path,
-                "prompt": prompt,
-                "parameters": {
-                    "guidance_scale": guidance_scale,
-                    "num_inference_steps": num_inference_steps,
-                    "strength": strength,
-                    "seed": seed,
-                    "size": f"{width}x{height}"
-                },
-                "message": "Inpainting completed successfully"
-            }
+        # Always stream PNG image in response (no file writes)
+        buf = io.BytesIO()
+        inpainted_image.save(buf, format="PNG")
+        buf.seek(0)
+        return StreamingResponse(buf, media_type="image/png")
             
     except Exception as e:
         tb = traceback.format_exc()
@@ -426,8 +386,8 @@ async def fill_object(
     num_inference_steps: int = Form(DEFAULT_NUM_INFERENCE_STEPS, description="Number of inference steps"),
     strength: float = Form(DEFAULT_STRENGTH, description="Strength"),
     seed: Optional[int] = Form(None, description="Random seed"),
-    output_path: Optional[str] = Form(None, description="Output path"),
-    return_type: str = Form("image", description="Return type: 'image' or 'json'"),
+    output_path: Optional[str] = Form(None, description="[Ignored] Output path is not used; response is streamed"),
+    return_type: str = Form("image", description="[Ignored] Always streams PNG image"),
     use_smart_crop: bool = Form(True, description="Use smart cropping for better results")
 ):
     """
@@ -437,22 +397,11 @@ async def fill_object(
     which often produces better results than full-image inpainting.
     """
     try:
-        # Create temp cache dir for this request
-        temp_cache_dir = os.path.join("./tmp/sdxl_cache", f"task_{uuid.uuid4()}")
-        os.makedirs(temp_cache_dir, exist_ok=True)
-        
-        # Save uploaded files
-        input_image_path = os.path.join(temp_cache_dir, "input.png")
-        mask_image_path = os.path.join(temp_cache_dir, "mask.png")
-        
-        with open(input_image_path, "wb") as f:
-            f.write(await image.read())
-        with open(mask_image_path, "wb") as f:
-            f.write(await mask.read())
-        
-        # Load images as numpy arrays
-        input_image = np.array(Image.open(input_image_path))
-        mask_image = np.array(Image.open(mask_image_path))
+        # Read uploaded files directly from memory (no disk I/O)
+        input_bytes = await image.read()
+        mask_bytes = await mask.read()
+        input_image = np.array(Image.open(io.BytesIO(input_bytes)).convert("RGB"))
+        mask_image = np.array(Image.open(io.BytesIO(mask_bytes)).convert("L"))
         
         # Convert mask to grayscale if needed
         if len(mask_image.shape) == 3:
@@ -535,38 +484,11 @@ async def fill_object(
         if SDXL_DEBUG:
             print(f"[DEBUG] Inpainting completed, result size: {inpainted_pil.size}")
         
-        # Determine output path
-        if output_path:
-            final_output_path = output_path
-            os.makedirs(os.path.dirname(final_output_path), exist_ok=True)
-        else:
-            final_output_path = os.path.join(temp_cache_dir, "inpainted.png")
-        
-        # Save result
-        inpainted_pil.save(final_output_path)
-        
-        # Return response
-        if return_type == "image":
-            # Stream the inpainted image
-            buf = io.BytesIO()
-            inpainted_pil.save(buf, format="PNG")
-            buf.seek(0)
-            return StreamingResponse(buf, media_type="image/png")
-        else:
-            # Return JSON with path
-            return {
-                "success": True,
-                "output_path": final_output_path,
-                "prompt": prompt,
-                "parameters": {
-                    "guidance_scale": guidance_scale,
-                    "num_inference_steps": num_inference_steps,
-                    "strength": strength,
-                    "seed": seed,
-                    "use_smart_crop": use_smart_crop
-                },
-                "message": "Fill inpainting completed successfully"
-            }
+        # Always stream PNG image in response (no file writes)
+        buf = io.BytesIO()
+        inpainted_pil.save(buf, format="PNG")
+        buf.seek(0)
+        return StreamingResponse(buf, media_type="image/png")
             
     except Exception as e:
         tb = traceback.format_exc()
