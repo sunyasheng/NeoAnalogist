@@ -28,6 +28,8 @@ from core.agent.tools.got_edit import GoTEditTool
 from core.agent.tools.anydoor_edit import AnyDoorEditTool
 from core.agent.tools.grounding_sam import GroundingSAMTool
 from core.agent.tools.inpaint_remove import InpaintRemoveTool
+from core.agent.tools.sdxl_inpaint import SDXLInpaintTool
+from core.agent.tools.lama_remove import LAMARemoveTool
 from core.agent.tools.qwen_api import QwenAPITool
 from core.agent.tools.image_edit_judge import ImageEditJudgeTool
 from core.events.action import (Action, AgentFinishAction, AgentThinkAction,
@@ -195,6 +197,37 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     dilate_kernel_size=arguments.get("dilate_kernel_size", 0),
                     return_type="image",
                     output_dir=arguments.get("output_dir", None),
+                    output_path=arguments.get("output_path", None),
+                    thought=thought,
+                )
+                action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
+            # ================================================
+            # SDXLInpaintTool
+            # ================================================
+            elif tool_call.function.name == SDXLInpaintTool["function"]["name"]:
+                from core.events.action.image import SDXLInpaintAction
+                action = SDXLInpaintAction(
+                    image_path=arguments.get("image_path", ""),
+                    mask_path=arguments.get("mask_path", ""),
+                    prompt=arguments.get("prompt", ""),
+                    guidance_scale=arguments.get("guidance_scale", 8.0),
+                    num_inference_steps=arguments.get("num_inference_steps", 20),
+                    strength=arguments.get("strength", 0.99),
+                    use_smart_crop=arguments.get("use_smart_crop", True),
+                    seed=arguments.get("seed", None),
+                    output_path=arguments.get("output_path", None),
+                    thought=thought,
+                )
+                action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
+            # ================================================
+            # LAMARemoveTool
+            # ================================================
+            elif tool_call.function.name == LAMARemoveTool["function"]["name"]:
+                from core.events.action.image import LAMARemoveAction
+                action = LAMARemoveAction(
+                    image_path=arguments.get("image_path", ""),
+                    mask_path=arguments.get("mask_path", ""),
+                    dilate_kernel_size=arguments.get("dilate_kernel_size", 0),
                     output_path=arguments.get("output_path", None),
                     thought=thought,
                 )
@@ -570,10 +603,12 @@ def get_tools(
         create_cmd_run_tool(use_simplified_description=use_simplified_tool_desc),
         ThinkTool,
         FinishTool,
-        GoTEditTool,
-        AnyDoorEditTool,
+        # GoTEditTool,
+        # AnyDoorEditTool,
         GroundingSAMTool,
-        InpaintRemoveTool,
+        # InpaintRemoveTool,
+        SDXLInpaintTool,
+        LAMARemoveTool,
         ImageEditJudgeTool,
         # IPythonTool,
         

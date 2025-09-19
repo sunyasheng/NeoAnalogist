@@ -80,8 +80,8 @@ from core.runtime.tasks.repo_edit import RepoEditTask
 from core.runtime.tasks.pdf_query_task import PDFQueryTool
 from core.events.observation.repo import RepoEditObservation
 from core.runtime.plugins.jupyter import JupyterPlugin
-from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, InpaintRemoveAction
-from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation, GroundingSAMObservation, InpaintRemoveObservation
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, InpaintRemoveAction, SDXLInpaintAction, LAMARemoveAction
+from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation, GroundingSAMObservation, InpaintRemoveObservation, SDXLInpaintObservation, LAMARemoveObservation
 from core.events.observation.repo import GoTEditObservation, QwenAPIObservation, AnyDoorEditObservation
 from core.runtime.tasks.image_entity_extract import ImageEntityExtractTask
 from core.runtime.tasks.got_edit import GoTEditClient
@@ -1323,6 +1323,149 @@ class ActionExecutor:
         except Exception as e:
             logger.error(f"Error in inpaint_remove: {str(e)}")
             return InpaintRemoveObservation(success=False, error_message=f"Failed to run LAMA inpainting: {str(e)}")
+
+    async def sdxl_inpaint(self, action: SDXLInpaintAction) -> SDXLInpaintObservation:
+        """Call SDXL Inpainting API with streaming image response and save to desired path."""
+        try:
+            import requests
+            base_url = os.environ.get("SDXL_BASE_URL", "http://10.64.74.69:8602")
+            url = f"{base_url.rstrip('/')}/inpaint/fill"
+
+            if not action.image_path:
+                return SDXLInpaintObservation(success=False, error_message="image_path is required")
+
+            if not action.mask_path:
+                return SDXLInpaintObservation(success=False, error_message="mask_path is required")
+
+            if not action.prompt:
+                return SDXLInpaintObservation(success=False, error_message="prompt is required")
+
+            files = {
+                "image": open(action.image_path, "rb"),
+                "mask": open(action.mask_path, "rb"),
+            }
+            
+            data = {
+                "prompt": action.prompt,
+                "guidance_scale": action.guidance_scale,
+                "num_inference_steps": action.num_inference_steps,
+                "strength": action.strength,
+                "use_smart_crop": action.use_smart_crop,
+                "return_type": "image",  # Always request streaming
+            }
+            
+            # Add optional parameters
+            if action.seed is not None:
+                data["seed"] = action.seed
+            if action.output_path:
+                data["output_path"] = action.output_path
+
+            try:
+                # Stream when expecting image
+                resp = requests.post(url, files=files, data=data, timeout=action.timeout, stream=True)
+                resp.raise_for_status()
+                
+                # Read content bytes
+                content_type = resp.headers.get("Content-Type", "image/png")
+                img_bytes = resp.content
+                
+                # Save file if output_path provided
+                saved_path = ""
+                try:
+                    if action.output_path:
+                        out_path = action.output_path
+                        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+                        with open(out_path, "wb") as f:
+                            f.write(img_bytes)
+                        saved_path = out_path
+                except Exception as _save_err:
+                    logger.warning(f"Failed to save streamed SDXL result: {_save_err}")
+                
+                return SDXLInpaintObservation(
+                    content="SDXL text-guided inpainting completed",
+                    prompt=action.prompt,
+                    output_path=saved_path,
+                    parameters={
+                        "guidance_scale": action.guidance_scale,
+                        "num_inference_steps": action.num_inference_steps,
+                        "strength": action.strength,
+                        "use_smart_crop": action.use_smart_crop,
+                        "seed": action.seed,
+                    },
+                    success=True,
+                )
+            finally:
+                try:
+                    files["image"].close()
+                    files["mask"].close()
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.error(f"Error in sdxl_inpaint: {str(e)}")
+            return SDXLInpaintObservation(success=False, error_message=f"Failed to run SDXL inpainting: {str(e)}")
+
+    async def lama_remove(self, action: LAMARemoveAction) -> LAMARemoveObservation:
+        """Call LAMA API for object removal with streaming image response and save to desired path."""
+        try:
+            import requests
+            base_url = os.environ.get("LAMA_BASE_URL", "http://10.64.74.69:8602")
+            url = f"{base_url.rstrip('/')}/inpaint/simple"
+
+            if not action.image_path:
+                return LAMARemoveObservation(success=False, error_message="image_path is required")
+
+            if not action.mask_path:
+                return LAMARemoveObservation(success=False, error_message="mask_path is required")
+
+            files = {
+                "image": open(action.image_path, "rb"),
+                "mask": open(action.mask_path, "rb"),
+            }
+            
+            data = {
+                "dilate_kernel_size": action.dilate_kernel_size,
+            }
+            
+            # Add optional parameters
+            if action.output_path:
+                data["output_path"] = action.output_path
+
+            try:
+                # Stream when expecting image
+                resp = requests.post(url, files=files, data=data, timeout=action.timeout, stream=True)
+                resp.raise_for_status()
+                
+                # Read content bytes
+                content_type = resp.headers.get("Content-Type", "image/png")
+                img_bytes = resp.content
+                
+                # Save file if output_path provided
+                saved_path = ""
+                try:
+                    if action.output_path:
+                        out_path = action.output_path
+                        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+                        with open(out_path, "wb") as f:
+                            f.write(img_bytes)
+                        saved_path = out_path
+                except Exception as _save_err:
+                    logger.warning(f"Failed to save streamed LAMA result: {_save_err}")
+                
+                return LAMARemoveObservation(
+                    content="LAMA object removal completed",
+                    output_path=saved_path,
+                    dilate_kernel_size=action.dilate_kernel_size,
+                    success=True,
+                )
+            finally:
+                try:
+                    files["image"].close()
+                    files["mask"].close()
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.error(f"Error in lama_remove: {str(e)}")
+            return LAMARemoveObservation(success=False, error_message=f"Failed to run LAMA object removal: {str(e)}")
 
     async def image_edit_judge(self, action: ImageEditJudgeAction) -> ImageEditJudgeObservation:
         """Judge image editing quality using AnyBench metrics.

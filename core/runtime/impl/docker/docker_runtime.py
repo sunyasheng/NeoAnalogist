@@ -30,7 +30,8 @@ from core.events.observation.repo import GoTEditObservation, QwenAPIObservation
 from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction
 from core.events.observation.image import ImageEditJudgeObservation
 from core.events.action.image import AnyDoorEditAction
-from core.events.action.image import GroundingSAMAction, InpaintRemoveAction
+from core.events.action.image import GroundingSAMAction, InpaintRemoveAction, SDXLInpaintAction, LAMARemoveAction
+from core.events.observation.image import SDXLInpaintObservation, LAMARemoveObservation
 
 # Import PDF query functionality
 from core.events.action import PDFQueryAction
@@ -182,6 +183,14 @@ class DockerRuntime(ActionExecutionClient):
 
     def got_edit(self, action: GoTEditAction) -> GoTEditObservation:
         """Call GoT API to edit an image with a prompt via the action execution server."""
+        return self.send_action_for_execution(action)
+
+    def sdxl_inpaint(self, action: SDXLInpaintAction) -> SDXLInpaintObservation:
+        """Call SDXL API for text-guided inpainting via the action execution server."""
+        return self.send_action_for_execution(action)
+
+    def lama_remove(self, action: LAMARemoveAction) -> LAMARemoveObservation:
+        """Call LAMA API for object removal via the action execution server."""
         return self.send_action_for_execution(action)
 
     def qwen_api(self, action: QwenAPIAction) -> QwenAPIObservation:
@@ -749,6 +758,22 @@ def main():
     parser.add_argument("--inpaint-remove-dilate-kernel-size", type=int, default=10, help="Dilate kernel size for mask expansion", metavar='SIZE')
     parser.add_argument("--inpaint-remove-return-type", type=str, choices=["image", "json"], default="image", help="Return type: image (PNG stream) or json (paths)", metavar='RET')
     parser.add_argument("--inpaint-remove-output-dir", type=str, help="Container path to save results when using return_type=json", metavar='OUT_DIR')
+    # SDXL Inpainting (text-guided filling)
+    parser.add_argument("--sdxl-inpaint-image-path", type=str, help="Container path to image for SDXL inpainting", metavar='IMG_PATH')
+    parser.add_argument("--sdxl-inpaint-mask-path", type=str, help="Container path to mask image for SDXL inpainting", metavar='MASK_PATH')
+    parser.add_argument("--sdxl-inpaint-prompt", type=str, help="Text prompt describing what to fill in the masked area", metavar='PROMPT')
+    parser.add_argument("--sdxl-inpaint-guidance-scale", type=float, default=8.0, help="Guidance scale for SDXL inpainting", metavar='SCALE')
+    parser.add_argument("--sdxl-inpaint-num-inference-steps", type=int, default=20, help="Number of inference steps for SDXL inpainting", metavar='STEPS')
+    parser.add_argument("--sdxl-inpaint-strength", type=float, default=0.99, help="Strength for SDXL inpainting", metavar='STRENGTH')
+    parser.add_argument("--sdxl-inpaint-use-smart-crop", action="store_true", default=True, help="Use smart cropping for better results (default: True)")
+    parser.add_argument("--sdxl-inpaint-no-smart-crop", action="store_true", help="Disable smart cropping")
+    parser.add_argument("--sdxl-inpaint-seed", type=int, help="Random seed for reproducible results", metavar='SEED')
+    parser.add_argument("--sdxl-inpaint-output-path", type=str, help="Container path to save SDXL inpainting result", metavar='OUTPUT_PATH')
+    # LAMA Object Removal (automatic background inpainting)
+    parser.add_argument("--lama-remove-image-path", type=str, help="Container path to image for LAMA object removal", metavar='IMG_PATH')
+    parser.add_argument("--lama-remove-mask-path", type=str, help="Container path to mask image for LAMA object removal", metavar='MASK_PATH')
+    parser.add_argument("--lama-remove-dilate-kernel-size", type=int, default=0, help="Dilate kernel size for mask expansion", metavar='SIZE')
+    parser.add_argument("--lama-remove-output-path", type=str, help="Container path to save LAMA removal result", metavar='OUTPUT_PATH')
     # Image Edit Judge (evaluate image editing quality)
     parser.add_argument("--image-edit-judge-original-path", type=str, help="Original image path for edit judge evaluation", metavar='ORIGINAL_PATH')
     parser.add_argument("--image-edit-judge-edited-path", type=str, help="Edited image path for edit judge evaluation", metavar='EDITED_PATH')
@@ -1071,6 +1096,99 @@ def main():
                 'num_masks': getattr(result, 'num_masks', 0),
                 'mask_paths': getattr(result, 'mask_paths', []),
                 'result_paths': getattr(result, 'result_paths', []),
+                'content': getattr(result, 'content', ''),
+            })
+        elif args.sdxl_inpaint_image_path or args.sdxl_inpaint_mask_path or args.sdxl_inpaint_prompt:
+            # Prepare container path mapping
+            def to_container_path(p: str) -> str:
+                if not p:
+                    return p
+                if p.startswith('/app_sci/'):
+                    return p
+                if not p.startswith('/'):
+                    return os.path.join('/app_sci', p)
+                return p
+
+            img_path = to_container_path(args.sdxl_inpaint_image_path or "")
+            mask_path = to_container_path(args.sdxl_inpaint_mask_path or "")
+            output_path = to_container_path(args.sdxl_inpaint_output_path or "") if args.sdxl_inpaint_output_path else None
+            
+            if not img_path:
+                print("Error: --sdxl-inpaint-image-path is required")
+                return
+            
+            if not mask_path:
+                print("Error: --sdxl-inpaint-mask-path is required")
+                return
+                
+            if not args.sdxl_inpaint_prompt:
+                print("Error: --sdxl-inpaint-prompt is required")
+                return
+
+            # Handle smart crop flag
+            use_smart_crop = True
+            if args.sdxl_inpaint_no_smart_crop:
+                use_smart_crop = False
+
+            # Build action: request streaming image and save to output_path
+            action = SDXLInpaintAction(
+                image_path=img_path,
+                mask_path=mask_path,
+                prompt=args.sdxl_inpaint_prompt,
+                guidance_scale=args.sdxl_inpaint_guidance_scale,
+                num_inference_steps=args.sdxl_inpaint_num_inference_steps,
+                strength=args.sdxl_inpaint_strength,
+                use_smart_crop=use_smart_crop,
+                seed=args.sdxl_inpaint_seed,
+                output_path=output_path,
+            )
+            # Execute
+            result = runtime.send_action_for_execution(action)
+            print({
+                'success': getattr(result, 'success', False),
+                'error': getattr(result, 'error_message', ''),
+                'prompt': getattr(result, 'prompt', ''),
+                'output_path': getattr(result, 'output_path', ''),
+                'parameters': getattr(result, 'parameters', {}),
+                'content': getattr(result, 'content', ''),
+            })
+        elif args.lama_remove_image_path or args.lama_remove_mask_path:
+            # Prepare container path mapping
+            def to_container_path(p: str) -> str:
+                if not p:
+                    return p
+                if p.startswith('/app_sci/'):
+                    return p
+                if not p.startswith('/'):
+                    return os.path.join('/app_sci', p)
+                return p
+
+            img_path = to_container_path(args.lama_remove_image_path or "")
+            mask_path = to_container_path(args.lama_remove_mask_path or "")
+            output_path = to_container_path(args.lama_remove_output_path or "") if args.lama_remove_output_path else None
+            
+            if not img_path:
+                print("Error: --lama-remove-image-path is required")
+                return
+            
+            if not mask_path:
+                print("Error: --lama-remove-mask-path is required")
+                return
+
+            # Build action: request streaming image and save to output_path
+            action = LAMARemoveAction(
+                image_path=img_path,
+                mask_path=mask_path,
+                dilate_kernel_size=args.lama_remove_dilate_kernel_size,
+                output_path=output_path,
+            )
+            # Execute
+            result = runtime.send_action_for_execution(action)
+            print({
+                'success': getattr(result, 'success', False),
+                'error': getattr(result, 'error_message', ''),
+                'output_path': getattr(result, 'output_path', ''),
+                'dilate_kernel_size': getattr(result, 'dilate_kernel_size', 0),
                 'content': getattr(result, 'content', ''),
             })
         elif args.task_graph:

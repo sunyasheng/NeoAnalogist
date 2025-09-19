@@ -83,3 +83,32 @@ class InpaintRemoveObservation(Observation):
             self.result_paths = []
 
 
+@dataclass
+class SDXLInpaintObservation(Observation):
+    """Observation for SDXL inpainting results."""
+    
+    content: str = ""
+    prompt: str = ""
+    output_path: str = ""
+    parameters: Optional[dict] = None
+    success: bool = True
+    error_message: str = ""
+    observation: str = "SDXL_INPAINT"
+    
+    def __post_init__(self):
+        if self.parameters is None:
+            self.parameters = {}
+
+
+@dataclass
+class LAMARemoveObservation(Observation):
+    """Observation for LAMA object removal results."""
+    
+    content: str = ""
+    output_path: str = ""
+    dilate_kernel_size: int = 0
+    success: bool = True
+    error_message: str = ""
+    observation: str = "LAMA_REMOVE"
+
+

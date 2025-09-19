@@ -29,7 +29,7 @@ from core.runtime.utils.request import send_request
 from core.utils.http_session import HttpSession
 from core.utils.types.exceptions import (AgentRuntimeError,
                                          AgentRuntimeTimeoutError)
-from core.events.action.image import ImageEntityExtractAction, GroundingSAMAction, InpaintRemoveAction
+from core.events.action.image import ImageEntityExtractAction, GroundingSAMAction, InpaintRemoveAction, SDXLInpaintAction, LAMARemoveAction
 
 
 class ActionExecutionClient:

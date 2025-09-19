@@ -184,3 +184,42 @@ class InpaintRemoveAction(Action):
         else:
             return f"Inpaint remove on {self.image_path}"
 
+
+@dataclass
+class SDXLInpaintAction(Action):
+    """Action for SDXL text-guided inpainting operations."""
+    
+    action: str = "sdxl_inpaint"
+    runnable: ClassVar[bool] = True
+    
+    image_path: str
+    mask_path: str
+    prompt: str
+    guidance_scale: float = 8.0
+    num_inference_steps: int = 20
+    strength: float = 0.99
+    use_smart_crop: bool = True
+    seed: Optional[int] = None
+    output_path: Optional[str] = None
+    timeout: int = 600
+    
+    def __str__(self) -> str:
+        return f"SDXL fill with prompt '{self.prompt}' and mask: {self.mask_path} on {self.image_path}"
+
+
+@dataclass
+class LAMARemoveAction(Action):
+    """Action for LAMA object removal operations."""
+    
+    action: str = "lama_remove"
+    runnable: ClassVar[bool] = True
+    
+    image_path: str
+    mask_path: str
+    dilate_kernel_size: int = 0
+    output_path: Optional[str] = None
+    timeout: int = 600
+    
+    def __str__(self) -> str:
+        return f"LAMA remove object with mask: {self.mask_path} on {self.image_path}"
+
