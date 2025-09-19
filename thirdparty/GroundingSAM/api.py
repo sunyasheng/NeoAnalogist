@@ -143,7 +143,7 @@ async def grounding_sam_segment(
                 print(f"DEBUG: Bounding boxes: {results.xyxy}")
         
         # Always check detection info regardless of mask status
-        print(f"DEBUG: Results empty: {results.empty}")
+        print(f"DEBUG: Results empty: {results.empty()}")
         if hasattr(results, 'confidence') and len(results.confidence) > 0:
             print(f"DEBUG: Detection confidences: {results.confidence}")
         if hasattr(results, 'xyxy') and len(results.xyxy) > 0:
