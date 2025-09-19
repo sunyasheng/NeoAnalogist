@@ -64,20 +64,9 @@ async def grounding_sam_segment(
     print(f"DEBUG: Created temp cache dir: {temp_cache_dir}")
     
     try:
-        # Build ontology from prompt - support both simple labels and complex descriptions
-        # First try comma separation, then fall back to treating as single complex description
-        if "," in text_prompt:
-            # Multiple simple labels: "cat, dog, person"
-            labels = [t.strip() for t in text_prompt.split(",") if t.strip()]
-        else:
-            # Single complex description: "reflection of cat in mirror"
-            # Ensure the text ends with a period for better GroundingDINO performance
-            clean_prompt = text_prompt.strip()
-            if not clean_prompt.endswith("."):
-                clean_prompt += "."
-            labels = [clean_prompt]
-        
-        if not labels or not labels[0]:
+        # Build ontology from prompt - use original simple logic
+        labels = [t.strip() for t in text_prompt.split(",") if t.strip()]
+        if not labels:
             return JSONResponse(status_code=400, content={"success": False, "error": "text_prompt is empty"})
         
         # Create ontology mapping each label to itself
@@ -90,6 +79,14 @@ async def grounding_sam_segment(
             ontology=ontology,
         )
         print("DEBUG: Model instantiated successfully")
+        
+        # Try to access the underlying GroundingDINO model to check thresholds
+        if hasattr(model, 'grounding_dino_model'):
+            print("DEBUG: Found grounding_dino_model attribute")
+        if hasattr(model, 'box_threshold'):
+            print(f"DEBUG: Box threshold: {model.box_threshold}")
+        if hasattr(model, 'text_threshold'):
+            print(f"DEBUG: Text threshold: {model.text_threshold}")
 
         # Save upload to temp path for predict
         print("DEBUG: Loading image...")
