@@ -189,12 +189,11 @@ class InpaintRemoveAction(Action):
 class SDXLInpaintAction(Action):
     """Action for SDXL text-guided inpainting operations."""
     
-    action: str = "sdxl_inpaint"
-    runnable: ClassVar[bool] = True
-    
     image_path: str
     mask_path: str
     prompt: str
+    action: str = "sdxl_inpaint"
+    runnable: ClassVar[bool] = True
     guidance_scale: float = 8.0
     num_inference_steps: int = 20
     strength: float = 0.99
@@ -211,11 +210,10 @@ class SDXLInpaintAction(Action):
 class LAMARemoveAction(Action):
     """Action for LAMA object removal operations."""
     
-    action: str = "lama_remove"
-    runnable: ClassVar[bool] = True
-    
     image_path: str
     mask_path: str
+    action: str = "lama_remove"
+    runnable: ClassVar[bool] = True
     dilate_kernel_size: int = 0
     output_path: Optional[str] = None
     timeout: int = 600
