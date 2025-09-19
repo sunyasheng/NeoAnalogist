@@ -145,7 +145,12 @@ async def grounding_sam_segment(
         # Default: stream first mask
         if return_type == "image":
             if not masks:
-                return JSONResponse(status_code=404, content={"success": False, "error": "No masks found"})
+                # Return an empty black image when no objects detected
+                empty_mask = np.zeros((100, 100), dtype=np.uint8)
+                buf = io.BytesIO()
+                Image.fromarray(empty_mask).save(buf, format="PNG")
+                buf.seek(0)
+                return StreamingResponse(buf, media_type="image/png")
             buf = io.BytesIO()
             first_mask = (masks[0].astype("uint8") * 255)
             Image.fromarray(first_mask).save(buf, format="PNG")
