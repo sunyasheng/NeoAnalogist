@@ -127,10 +127,20 @@ async def grounding_sam_segment(
             print("DEBUG: Found results.mask")
             # some versions expose singular 'mask'
             arr = np.asarray(results.mask)
+            print(f"DEBUG: mask array shape: {arr.shape}")
             if arr.ndim == 3:
                 masks = [arr[i] for i in range(arr.shape[0])]
             elif arr.ndim == 2:
                 masks = [arr]
+        else:
+            print("DEBUG: No masks found in results")
+            # Let's check if there are any detections at all
+            if hasattr(results, 'confidence'):
+                print(f"DEBUG: Found {len(results.confidence)} detections with confidences: {results.confidence}")
+            if hasattr(results, 'class_id'):
+                print(f"DEBUG: Class IDs: {results.class_id}")
+            if hasattr(results, 'xyxy'):
+                print(f"DEBUG: Bounding boxes: {results.xyxy}")
         else:
             print("DEBUG: No masks found in results")
         num = len(masks)
