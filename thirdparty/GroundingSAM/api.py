@@ -105,27 +105,36 @@ async def grounding_sam_segment(
 
         # Normalize masks from results
         print("DEBUG: Processing results...")
+        print(f"DEBUG: Results type: {type(results)}")
+        print(f"DEBUG: Results attributes: {dir(results)}")
         masks: List[np.ndarray] = []
         if hasattr(results, "masks") and results.masks is not None:
+            print("DEBUG: Found results.masks")
             # autodistill style: list/array of (H, W) boolean/uint8 masks
             rm = results.masks
             if isinstance(rm, list):
                 masks = rm
+                print(f"DEBUG: masks is list, length: {len(masks)}")
             else:
                 # numpy array: (N, H, W) or (H, W)
                 arr = np.asarray(rm)
+                print(f"DEBUG: masks is array, shape: {arr.shape}")
                 if arr.ndim == 3:
                     masks = [arr[i] for i in range(arr.shape[0])]
                 elif arr.ndim == 2:
                     masks = [arr]
         elif hasattr(results, "mask") and results.mask is not None:
+            print("DEBUG: Found results.mask")
             # some versions expose singular 'mask'
             arr = np.asarray(results.mask)
             if arr.ndim == 3:
                 masks = [arr[i] for i in range(arr.shape[0])]
             elif arr.ndim == 2:
                 masks = [arr]
+        else:
+            print("DEBUG: No masks found in results")
         num = len(masks)
+        print(f"DEBUG: Total masks found: {num}")
 
         # Default: stream first mask
         if return_type == "image":
