@@ -582,7 +582,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="SDXL Inpainting FastAPI Server")
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
-    parser.add_argument("--port", type=int, default=8602, help="Port to bind to")
+    parser.add_argument("--port", type=int, default=8603, help="Port to bind to")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
     args = parser.parse_args()
     

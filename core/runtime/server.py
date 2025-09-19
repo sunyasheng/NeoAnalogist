@@ -1328,7 +1328,7 @@ class ActionExecutor:
         """Call SDXL Inpainting API with streaming image response and save to desired path."""
         try:
             import requests
-            base_url = os.environ.get("SDXL_BASE_URL", "http://10.64.74.69:8602")
+            base_url = os.environ.get("SDXL_BASE_URL", "http://10.64.74.69:8603")
             url = f"{base_url.rstrip('/')}/inpaint/fill"
 
             if not action.image_path:
