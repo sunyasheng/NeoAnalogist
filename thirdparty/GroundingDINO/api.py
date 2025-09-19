@@ -164,8 +164,9 @@ async def _warmup_models():
         return
     
     try:
-        _model = load_model(model_config_path, model_checkpoint_path, cpu_only=False)
-        _device = "cuda" if torch.cuda.is_available() else "cpu"
+        # Use CPU mode to avoid C++ extension issues
+        _model = load_model(model_config_path, model_checkpoint_path, cpu_only=True)
+        _device = "cpu"
         print(f"GroundingDINO model loaded successfully on {_device}")
     except Exception as e:
         print(f"Failed to load GroundingDINO model: {e}")
