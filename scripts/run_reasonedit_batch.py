@@ -90,13 +90,17 @@ def main():
                         help="Root directory of ReasonEdit dataset (contains 3-Mirror, 4-Color)")
     parser.add_argument("--workspace", type=str, default=str(default_workspace),
                         help="Base workspace directory where timestamped folder will be created")
-    parser.add_argument("--num-per-category", type=int, default=5, help="Number of tasks to sample per category")
+    parser.add_argument("--num-per-category", type=int, default=1, help="Number of tasks to sample per category (default 1 for per-task runs)")
     parser.add_argument("--seed", type=int, default=42, help="Sampling seed")
     parser.add_argument("--run", action="store_true", help="If set, invoke main.py for each task")
     parser.add_argument("--config", type=str, default=str(default_config),
                         help="Config file passed to main.py if --run is set")
     parser.add_argument("--task-template", type=str, default=None,
                         help="Optional task text to pass to main.py --task. Use {category} and {task_id} placeholders.")
+    parser.add_argument("--separate-by-category", action="store_true",
+                        help="Create a separate timestamped workspace for each category (if multiple tasks)")
+    parser.add_argument("--grouped", action="store_true",
+                        help="Group all selected tasks into a single timestamped workspace (override default per-task mode)")
     args = parser.parse_args()
 
     debug_root = Path(args.debug_root)
@@ -108,36 +112,88 @@ def main():
         ("4-Color", debug_root / "4-Color"),
     ]
 
-    # Create timestamped workspace root
-    dest_root = create_workspace_root(workspace_base)
+    if not args.grouped:
+        # Default: per-task workspaces (each task gets its own timestamped root)
+        total = 0
+        for category, cat_dir in categories:
+            ids = list_task_ids(cat_dir)
+            chosen = sample_ids(ids, args.num_per_category, args.seed)
+            for task_id in chosen:
+                dest_root = create_workspace_root(workspace_base)
+                dest_dir = prepare_task(category, task_id, cat_dir, dest_root)
 
-    summary = []
-    for category, cat_dir in categories:
-        ids = list_task_ids(cat_dir)
-        chosen = sample_ids(ids, args.num_per_category, args.seed)
-        for task_id in chosen:
-            dest_dir = prepare_task(category, task_id, cat_dir, dest_root)
-            summary.append((category, task_id, dest_dir))
+                # Optional run
+                if args.run:
+                    work_dir = dest_root.parent
+                    task_text = None
+                    if args.task_template:
+                        task_text = args.task_template.format(category=category, task_id=task_id)
+                    cmd = build_command(main_py, work_dir, Path(args.config), task_text)
+                    code = maybe_run_task(True, cmd, cwd=work_dir)
+                    (dest_dir / "run_exit_code.txt").write_text(str(code))
 
-    # Optionally run tasks by invoking main.py with the timestamped ReasonEdit root as work-dir
-    if args.run:
-        for category, task_id, dest_dir in summary:
-            work_dir = dest_root.parent  # timestamped folder root
-            task_text = None
-            if args.task_template:
-                task_text = args.task_template.format(category=category, task_id=task_id)
-            cmd = build_command(main_py, work_dir, Path(args.config), task_text)
-            code = maybe_run_task(True, cmd, cwd=work_dir)
-            (dest_dir / "run_exit_code.txt").write_text(str(code))
+                # Write index per workspace
+                index_path = dest_root / "index.tsv"
+                with index_path.open("w") as f:
+                    f.write("category\ttask_id\tdir\n")
+                    f.write(f"{category}\t{task_id}\t{dest_dir}\n")
+                total += 1
+        print(f"Prepared {total} task workspaces (per-task mode)")
+    elif args.separate_by_category:
+        total = 0
+        for category, cat_dir in categories:
+            dest_root = create_workspace_root(workspace_base)
+            summary = []
+            ids = list_task_ids(cat_dir)
+            chosen = sample_ids(ids, args.num_per_category, args.seed)
+            for task_id in chosen:
+                dest_dir = prepare_task(category, task_id, cat_dir, dest_root)
+                summary.append((category, task_id, dest_dir))
 
-    # Write an overall index
-    index_path = dest_root / "index.tsv"
-    with index_path.open("w") as f:
-        f.write("category\ttask_id\tdir\n")
-        for category, task_id, dest_dir in summary:
-            f.write(f"{category}\t{task_id}\t{dest_dir}\n")
+            if args.run:
+                for category2, task_id2, dest_dir2 in summary:
+                    work_dir = dest_root.parent
+                    task_text = None
+                    if args.task_template:
+                        task_text = args.task_template.format(category=category2, task_id=task_id2)
+                    cmd = build_command(main_py, work_dir, Path(args.config), task_text)
+                    code = maybe_run_task(True, cmd, cwd=work_dir)
+                    (dest_dir2 / "run_exit_code.txt").write_text(str(code))
 
-    print(f"Prepared {len(summary)} tasks under {dest_root}")
+            index_path = dest_root / "index.tsv"
+            with index_path.open("w") as f:
+                f.write("category\ttask_id\tdir\n")
+                for category2, task_id2, dest_dir2 in summary:
+                    f.write(f"{category2}\t{task_id2}\t{dest_dir2}\n")
+            total += len(summary)
+        print(f"Prepared {total} tasks under separate timestamped roots (one per category)")
+    else:
+        # Single timestamped workspace root holding both categories
+        dest_root = create_workspace_root(workspace_base)
+        summary = []
+        for category, cat_dir in categories:
+            ids = list_task_ids(cat_dir)
+            chosen = sample_ids(ids, args.num_per_category, args.seed)
+            for task_id in chosen:
+                dest_dir = prepare_task(category, task_id, cat_dir, dest_root)
+                summary.append((category, task_id, dest_dir))
+
+        if args.run:
+            for category, task_id, dest_dir in summary:
+                work_dir = dest_root.parent
+                task_text = None
+                if args.task_template:
+                    task_text = args.task_template.format(category=category, task_id=task_id)
+                cmd = build_command(main_py, work_dir, Path(args.config), task_text)
+                code = maybe_run_task(True, cmd, cwd=work_dir)
+                (dest_dir / "run_exit_code.txt").write_text(str(code))
+
+        index_path = dest_root / "index.tsv"
+        with index_path.open("w") as f:
+            f.write("category\ttask_id\tdir\n")
+            for category, task_id, dest_dir in summary:
+                f.write(f"{category}\t{task_id}\t{dest_dir}\n")
+        print(f"Prepared {len(summary)} tasks under {dest_root}")
 
 
 if __name__ == "__main__":
