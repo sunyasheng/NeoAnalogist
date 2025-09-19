@@ -73,9 +73,11 @@ def build_eval_prompt(instruction: str) -> str:
 - If the instruction specifies certain details, check if they were followed correctly
 - Be specific about what was wrong: identify the exact discrepancy between instruction and result
 - Consider both what was changed and what should have been changed
+- **Critical**: If the instruction targets a specific object/location, check if the edit was applied to the RIGHT target
+- **Critical**: Identify what should have been left unchanged but was modified instead
 
 **Example of Good Reasoning**:
-"Original image shows [describe original]. The instruction was to [restate instruction]. However, the edited image shows [describe what actually happened]. This is incorrect because [specific reason why it doesn't match the instruction]."
+"Original image shows [describe original with all objects and their locations]. The instruction was to [restate instruction with specific target]. However, the edited image shows [describe what actually happened]. This is incorrect because [specific reason why it doesn't match the instruction]. The edit was applied to [wrong target] instead of [correct target], and [what should have been left unchanged] was modified when it should have remained the same."
 """
 
 def call_gpt4o_eval(prompt: str, image_paths: list[str], model: str = "gpt-4o-mini", 
