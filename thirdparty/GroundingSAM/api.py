@@ -92,13 +92,19 @@ async def grounding_sam_segment(
         print("DEBUG: Model instantiated successfully")
 
         # Save upload to temp path for predict
+        print("DEBUG: Loading image...")
         import tempfile
         image_np = _load_image_to_numpy(image)
+        print(f"DEBUG: Image loaded, shape: {image_np.shape}")
         with tempfile.NamedTemporaryFile(suffix=".png", delete=True) as tmp:
             Image.fromarray(image_np).save(tmp.name)
+            print(f"DEBUG: Saved image to temp file: {tmp.name}")
+            print("DEBUG: Running model prediction...")
             results = model.predict(tmp.name)
+            print("DEBUG: Model prediction completed")
 
         # Normalize masks from results
+        print("DEBUG: Processing results...")
         masks: List[np.ndarray] = []
         if hasattr(results, "masks") and results.masks is not None:
             # autodistill style: list/array of (H, W) boolean/uint8 masks
