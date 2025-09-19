@@ -106,7 +106,14 @@ async def grounding_sam_segment(
         # Normalize masks from results
         print("DEBUG: Processing results...")
         print(f"DEBUG: Results type: {type(results)}")
-        print(f"DEBUG: Results attributes: {dir(results)}")
+        print(f"DEBUG: Results empty: {results.empty()}")
+        
+        # Check detection info first
+        if hasattr(results, 'confidence') and len(results.confidence) > 0:
+            print(f"DEBUG: Found {len(results.confidence)} detections with confidences: {results.confidence}")
+        if hasattr(results, 'xyxy') and len(results.xyxy) > 0:
+            print(f"DEBUG: Detection boxes: {results.xyxy}")
+        
         masks: List[np.ndarray] = []
         if hasattr(results, "masks") and results.masks is not None:
             print("DEBUG: Found results.masks")
@@ -134,20 +141,7 @@ async def grounding_sam_segment(
                 masks = [arr]
         else:
             print("DEBUG: No masks found in results")
-            # Let's check if there are any detections at all
-            if hasattr(results, 'confidence'):
-                print(f"DEBUG: Found {len(results.confidence)} detections with confidences: {results.confidence}")
-            if hasattr(results, 'class_id'):
-                print(f"DEBUG: Class IDs: {results.class_id}")
-            if hasattr(results, 'xyxy'):
-                print(f"DEBUG: Bounding boxes: {results.xyxy}")
         
-        # Always check detection info regardless of mask status
-        print(f"DEBUG: Results empty: {results.empty()}")
-        if hasattr(results, 'confidence') and len(results.confidence) > 0:
-            print(f"DEBUG: Detection confidences: {results.confidence}")
-        if hasattr(results, 'xyxy') and len(results.xyxy) > 0:
-            print(f"DEBUG: Detection boxes: {results.xyxy}")
         num = len(masks)
         print(f"DEBUG: Total masks found: {num}")
 
