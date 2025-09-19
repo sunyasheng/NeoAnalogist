@@ -166,9 +166,7 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                 action = ImageEditJudgeAction(
                     original_path=arguments.get("original_path", ""),
                     edited_path=arguments.get("edited_path", ""),
-                    input_caption=arguments.get("input_caption", ""),
-                    output_caption=arguments.get("output_caption", ""),
-                    use_qwen_analysis=arguments.get("use_qwen_analysis", True),
+                    instruction=arguments.get("instruction", ""),
                     thought=thought,
                 )
                 action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)

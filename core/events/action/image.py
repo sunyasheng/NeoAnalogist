@@ -135,17 +135,15 @@ class GroundingSAMAction(Action):
 
 @dataclass
 class ImageEditJudgeAction(Action):
-    """Judge image editing quality using AnyBench metrics.
+    """Judge image editing quality using GPT-4o vision analysis.
     
     Evaluates the quality of image editing by comparing original and edited images
-    using CLIP-I, CLIP-T, L1/L2 distances and providing suggestions.
+    using GPT-4o vision to assess if the edit instruction was followed correctly.
     """
 
     original_path: str = ""
     edited_path: str = ""
-    input_caption: str = ""
-    output_caption: str = ""
-    use_qwen_analysis: bool = True  # Whether to use Qwen API for intelligent analysis
+    instruction: str = ""  # The edit instruction that was given
     thought: str = ""
 
     action: str = "image_edit_judge"
@@ -153,7 +151,7 @@ class ImageEditJudgeAction(Action):
 
     @property
     def message(self) -> str:
-        return f"Judge image edit quality: {self.original_path} -> {self.edited_path} (input: {self.input_caption[:30]}... -> output: {self.output_caption[:30]}...)"
+        return f"Judge image edit quality: {self.original_path} -> {self.edited_path} (instruction: {self.instruction[:50]}...)"
 
 
 @dataclass

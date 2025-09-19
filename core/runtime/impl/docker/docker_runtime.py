@@ -777,10 +777,7 @@ def main():
     # Image Edit Judge (evaluate image editing quality)
     parser.add_argument("--image-edit-judge-original-path", type=str, help="Original image path for edit judge evaluation", metavar='ORIGINAL_PATH')
     parser.add_argument("--image-edit-judge-edited-path", type=str, help="Edited image path for edit judge evaluation", metavar='EDITED_PATH')
-    parser.add_argument("--image-edit-judge-input-caption", type=str, help="Input caption (original image description) for edit judge evaluation", metavar='INPUT_CAPTION')
-    parser.add_argument("--image-edit-judge-output-caption", type=str, help="Output caption (edited image description) for edit judge evaluation", metavar='OUTPUT_CAPTION')
-    parser.add_argument("--image-edit-judge-use-qwen", action="store_true", default=True, help="Use Qwen API for intelligent analysis (default: True)")
-    parser.add_argument("--image-edit-judge-no-qwen", action="store_true", help="Disable Qwen API analysis")
+    parser.add_argument("--image-edit-judge-instruction", type=str, help="Edit instruction that was given (e.g., 'Replace the cat with a fox')", metavar='INSTRUCTION')
     # AnyDoor edit (reference object transfer)
     parser.add_argument("--anydoor-ref-image-path", type=str, help="Container path to reference image (PNG with alpha preferred)")
     parser.add_argument("--anydoor-ref-mask-path", type=str, help="Container path to reference mask (optional; required if ref has no alpha)")
@@ -1584,17 +1581,16 @@ def main():
             
             if result.error_message:
                 print(f"❌ Error: {result.error_message}")
-        elif args.image_edit_judge_original_path or args.image_edit_judge_edited_path or args.image_edit_judge_input_caption or args.image_edit_judge_output_caption:
-            if not all([args.image_edit_judge_original_path, args.image_edit_judge_edited_path, args.image_edit_judge_input_caption, args.image_edit_judge_output_caption]):
-                print("Error: --image-edit-judge-original-path, --image-edit-judge-edited-path, --image-edit-judge-input-caption, and --image-edit-judge-output-caption are all required")
+        elif args.image_edit_judge_original_path or args.image_edit_judge_edited_path or args.image_edit_judge_instruction:
+            if not all([args.image_edit_judge_original_path, args.image_edit_judge_edited_path, args.image_edit_judge_instruction]):
+                print("Error: --image-edit-judge-original-path, --image-edit-judge-edited-path, and --image-edit-judge-instruction are all required")
                 return
             from core.events.action.image import ImageEditJudgeAction
             
             print(f"\n🎨 Image Edit Quality Judge")
             print(f"Original Path: {args.image_edit_judge_original_path}")
             print(f"Edited Path: {args.image_edit_judge_edited_path}")
-            print(f"Input Caption: {args.image_edit_judge_input_caption}")
-            print(f"Output Caption: {args.image_edit_judge_output_caption}")
+            print(f"Instruction: {args.image_edit_judge_instruction}")
             
             # Map container paths for image edit judge
             original_path = args.image_edit_judge_original_path or ""
@@ -1616,28 +1612,22 @@ def main():
                     # Relative path - make it absolute in container
                     edited_path = os.path.join('/app_sci', edited_path)
             
-            # Determine if Qwen analysis should be used
-            use_qwen = args.image_edit_judge_use_qwen and not args.image_edit_judge_no_qwen
-            
             action = ImageEditJudgeAction(
                 original_path=original_path,
                 edited_path=edited_path,
-                input_caption=args.image_edit_judge_input_caption or "",
-                output_caption=args.image_edit_judge_output_caption or "",
-                use_qwen_analysis=use_qwen
+                instruction=args.image_edit_judge_instruction or "",
             )
             result = runtime.image_edit_judge(action)
-            print({
-                'success': getattr(result, 'status', '') == 'success',
-                'error': getattr(result, 'error_message', ''),
-                'clip_i': getattr(result, 'clip_i', 0.0),
-                'clip_t': getattr(result, 'clip_t', 0.0),
-                'l1_distance': getattr(result, 'l1_distance', 0.0),
-                'l2_distance': getattr(result, 'l2_distance', 0.0),
-                'overall_score': getattr(result, 'overall_score', 0.0),
-                'suggestions': getattr(result, 'suggestions', []),
-                'content': getattr(result, 'content', ''),
-            })
+            
+            if result.success:
+                print(f"✅ Image Edit Judge completed successfully!")
+                print(f"📊 Results:")
+                print(f"  Correct: {result.is_correct}")
+                print(f"  Score: {result.score}/10")
+                print(f"  Feedback: {result.feedback}")
+                print(f"  Reasoning: {result.reasoning}")
+            else:
+                print(f"❌ Image Edit Judge failed: {result.error_message}")
         elif args.exp_manager_cmd or args.exp_manager_mode:
             # Experiment Manager entry (shell)
             print("\n🧪 Experiment Manager")
@@ -1906,8 +1896,7 @@ def main():
             print("    Optional flags: --pdf-query-embedding-model <model>, --pdf-query-top-k <number>")
             print("  --qwen-api-image-path <path> --qwen-api-prompt <prompt> Analyze image using Qwen2.5-VL API")
             print("    Optional flags: --qwen-api-mode <generate|chat>, --qwen-api-max-tokens <tokens>, --qwen-api-temperature <temp>, --qwen-api-top-p <top_p>")
-            print("  --image-edit-judge-original-path <path> --image-edit-judge-edited-path <path> --image-edit-judge-input-caption <input> --image-edit-judge-output-caption <output> Evaluate image editing quality using AnyBench metrics")
-            print("    Optional flags: --image-edit-judge-use-qwen (enable Qwen analysis, default), --image-edit-judge-no-qwen (disable Qwen analysis)")
+            print("  --image-edit-judge-original-path <path> --image-edit-judge-edited-path <path> --image-edit-judge-instruction <instruction> Evaluate image editing quality using GPT-4o vision")
             print("  --exp-manager-cmd <bash_cmd> Wrap bash command into MLflow experiment script (e.g., python xxx.py)")
             print("  --exp-manager-mode <wrap|query> Experiment manager mode: wrap (create MLflow script) or query (list experiments) (default: query)")
             print("    Optional: --exp-manager-exp-name <exp_name> (experiment name for the wrapper)")
