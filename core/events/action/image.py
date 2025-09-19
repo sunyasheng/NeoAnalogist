@@ -197,7 +197,7 @@ class SDXLInpaintAction(Action):
     guidance_scale: float = 8.0
     num_inference_steps: int = 20
     strength: float = 0.99
-    use_smart_crop: bool = True
+    use_smart_crop: bool = False
     seed: Optional[int] = None
     output_path: Optional[str] = None
     timeout: int = 600

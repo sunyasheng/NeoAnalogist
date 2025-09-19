@@ -213,7 +213,7 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     guidance_scale=arguments.get("guidance_scale", 8.0),
                     num_inference_steps=arguments.get("num_inference_steps", 20),
                     strength=arguments.get("strength", 0.99),
-                    use_smart_crop=arguments.get("use_smart_crop", True),
+                    use_smart_crop=arguments.get("use_smart_crop", False),
                     seed=arguments.get("seed", None),
                     output_path=arguments.get("output_path", None),
                 )
