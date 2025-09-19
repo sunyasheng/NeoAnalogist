@@ -4,7 +4,7 @@ import random
 import shutil
 import time
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Optional
 
 
 def list_task_ids(category_dir: Path) -> List[str]:
@@ -32,7 +32,26 @@ def create_workspace_root(base_workspace: Path) -> Path:
     return root
 
 
-def prepare_task(category: str, task_id: str, source_dir: Path, dest_root: Path) -> Path:
+def load_instructions(debug_root: Path) -> Dict[str, Dict[str, str]]:
+    """Load instruction texts for categories. Keyed by category -> id(str) -> instruction."""
+    mapping: Dict[str, Dict[str, str]] = {}
+    files = {
+        "3-Mirror": debug_root / "3-Mirror" / "Mirror_text.txt",
+        "4-Color": debug_root / "4-Color" / "Color_text.txt",
+    }
+    for category, file_path in files.items():
+        id2instr: Dict[str, str] = {}
+        if file_path.exists():
+            lines = file_path.read_text().splitlines()
+            # Assume 1-indexed lines map to 001.. format
+            for idx, line in enumerate(lines, start=1):
+                key = f"{idx:03d}"
+                id2instr[key] = line.strip()
+        mapping[category] = id2instr
+    return mapping
+
+
+def prepare_task(category: str, task_id: str, source_dir: Path, dest_root: Path, instruction: Optional[str]) -> Path:
     dest_dir = dest_root / category / task_id
     dest_dir.mkdir(parents=True, exist_ok=True)
     src_img = source_dir / f"{task_id}.png"
@@ -48,8 +67,13 @@ def prepare_task(category: str, task_id: str, source_dir: Path, dest_root: Path)
         f"category: {category}\n"\
         f"task_id: {task_id}\n"\
         f"image: {dst_img}\n"\
-        f"mask: {dst_mask}\n"
+        f"mask: {dst_mask}\n"\
+        f"instruction: {instruction or ''}\n"
     )
+
+    # Save instruction into a file for easy reading
+    if instruction:
+        (dest_dir / "instruction.txt").write_text(instruction)
     return dest_dir
 
 
@@ -96,7 +120,9 @@ def main():
     parser.add_argument("--config", type=str, default=str(default_config),
                         help="Config file passed to main.py if --run is set")
     parser.add_argument("--task-template", type=str, default=None,
-                        help="Optional task text to pass to main.py --task. Use {category} and {task_id} placeholders.")
+                        help="Optional task text passed to main.py --task. Supports {category}, {task_id}, {instruction} placeholders.")
+    parser.add_argument("--task-from-instruction", action="store_true",
+                        help="If set, use instruction text directly as --task (overridden by --task-template if given)")
     parser.add_argument("--separate-by-category", action="store_true",
                         help="Create a separate timestamped workspace for each category (if multiple tasks)")
     parser.add_argument("--grouped", action="store_true",
@@ -112,6 +138,9 @@ def main():
         ("4-Color", debug_root / "4-Color"),
     ]
 
+    # Load instructions map once
+    instr_map = load_instructions(debug_root)
+
     if not args.grouped:
         # Default: per-task workspaces (each task gets its own timestamped root)
         total = 0
@@ -120,14 +149,17 @@ def main():
             chosen = sample_ids(ids, args.num_per_category, args.seed)
             for task_id in chosen:
                 dest_root = create_workspace_root(workspace_base)
-                dest_dir = prepare_task(category, task_id, cat_dir, dest_root)
+                instruction = instr_map.get(category, {}).get(task_id)
+                dest_dir = prepare_task(category, task_id, cat_dir, dest_root, instruction)
 
                 # Optional run
                 if args.run:
                     work_dir = dest_root.parent
                     task_text = None
                     if args.task_template:
-                        task_text = args.task_template.format(category=category, task_id=task_id)
+                        task_text = args.task_template.format(category=category, task_id=task_id, instruction=instruction or "")
+                    elif args.task_from_instruction and instruction:
+                        task_text = instruction
                     cmd = build_command(main_py, work_dir, Path(args.config), task_text)
                     code = maybe_run_task(True, cmd, cwd=work_dir)
                     (dest_dir / "run_exit_code.txt").write_text(str(code))
@@ -135,8 +167,8 @@ def main():
                 # Write index per workspace
                 index_path = dest_root / "index.tsv"
                 with index_path.open("w") as f:
-                    f.write("category\ttask_id\tdir\n")
-                    f.write(f"{category}\t{task_id}\t{dest_dir}\n")
+                    f.write("category\ttask_id\tdir\tinstruction\n")
+                    f.write(f"{category}\t{task_id}\t{dest_dir}\t{(instruction or '').replace('\t',' ').replace('\n',' ')}\n")
                 total += 1
         print(f"Prepared {total} task workspaces (per-task mode)")
     elif args.separate_by_category:
@@ -147,24 +179,27 @@ def main():
             ids = list_task_ids(cat_dir)
             chosen = sample_ids(ids, args.num_per_category, args.seed)
             for task_id in chosen:
-                dest_dir = prepare_task(category, task_id, cat_dir, dest_root)
-                summary.append((category, task_id, dest_dir))
+                instruction = instr_map.get(category, {}).get(task_id)
+                dest_dir = prepare_task(category, task_id, cat_dir, dest_root, instruction)
+                summary.append((category, task_id, dest_dir, instruction))
 
             if args.run:
-                for category2, task_id2, dest_dir2 in summary:
+                for category2, task_id2, dest_dir2, instruction2 in summary:
                     work_dir = dest_root.parent
                     task_text = None
                     if args.task_template:
-                        task_text = args.task_template.format(category=category2, task_id=task_id2)
+                        task_text = args.task_template.format(category=category2, task_id=task_id2, instruction=instruction2 or "")
+                    elif args.task_from_instruction and instruction2:
+                        task_text = instruction2
                     cmd = build_command(main_py, work_dir, Path(args.config), task_text)
                     code = maybe_run_task(True, cmd, cwd=work_dir)
                     (dest_dir2 / "run_exit_code.txt").write_text(str(code))
 
             index_path = dest_root / "index.tsv"
             with index_path.open("w") as f:
-                f.write("category\ttask_id\tdir\n")
-                for category2, task_id2, dest_dir2 in summary:
-                    f.write(f"{category2}\t{task_id2}\t{dest_dir2}\n")
+                f.write("category\ttask_id\tdir\tinstruction\n")
+                for category2, task_id2, dest_dir2, instruction2 in summary:
+                    f.write(f"{category2}\t{task_id2}\t{dest_dir2}\t{(instruction2 or '').replace('\t',' ').replace('\n',' ')}\n")
             total += len(summary)
         print(f"Prepared {total} tasks under separate timestamped roots (one per category)")
     else:
@@ -175,24 +210,27 @@ def main():
             ids = list_task_ids(cat_dir)
             chosen = sample_ids(ids, args.num_per_category, args.seed)
             for task_id in chosen:
-                dest_dir = prepare_task(category, task_id, cat_dir, dest_root)
-                summary.append((category, task_id, dest_dir))
+                instruction = instr_map.get(category, {}).get(task_id)
+                dest_dir = prepare_task(category, task_id, cat_dir, dest_root, instruction)
+                summary.append((category, task_id, dest_dir, instruction))
 
         if args.run:
-            for category, task_id, dest_dir in summary:
+            for category, task_id, dest_dir, instruction in summary:
                 work_dir = dest_root.parent
                 task_text = None
                 if args.task_template:
-                    task_text = args.task_template.format(category=category, task_id=task_id)
+                    task_text = args.task_template.format(category=category, task_id=task_id, instruction=instruction or "")
+                elif args.task_from_instruction and instruction:
+                    task_text = instruction
                 cmd = build_command(main_py, work_dir, Path(args.config), task_text)
                 code = maybe_run_task(True, cmd, cwd=work_dir)
                 (dest_dir / "run_exit_code.txt").write_text(str(code))
 
         index_path = dest_root / "index.tsv"
         with index_path.open("w") as f:
-            f.write("category\ttask_id\tdir\n")
-            for category, task_id, dest_dir in summary:
-                f.write(f"{category}\t{task_id}\t{dest_dir}\n")
+            f.write("category\ttask_id\tdir\tinstruction\n")
+            for category, task_id, dest_dir, instruction in summary:
+                f.write(f"{category}\t{task_id}\t{dest_dir}\t{(instruction or '').replace('\t',' ').replace('\n',' ')}\n")
         print(f"Prepared {len(summary)} tasks under {dest_root}")
 
 
