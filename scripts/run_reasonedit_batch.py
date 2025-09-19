@@ -100,14 +100,15 @@ def resolve_config_path(repo_root: Path, raw_path: Optional[str]) -> Optional[Pa
     return None
 
 
-def build_command(main_py: Path, work_dir: Path, config_path: Optional[Path], task_text: str | None) -> List[str]:
+def build_command(main_py: Path, work_dir: Path, config_path: Optional[Path], task_text: str | None, repo_root: Path) -> List[str]:
     cmd = [
         "python",
         str(main_py),
         "--work-dir", str(work_dir),
     ]
     if config_path and config_path.exists():
-        cmd.extend(["--config", str(config_path)])
+        # Use absolute path to avoid issues when working directory changes
+        cmd.extend(["--config", str(config_path.resolve())])
     if task_text:
         cmd.extend(["--task", task_text])
     return cmd
@@ -184,7 +185,7 @@ def main():
                         task_text = args.task_template.format(category=category, task_id=task_id, instruction=instruction or "")
                     elif args.task_from_instruction and instruction:
                         task_text = instruction
-                    cmd = build_command(main_py, work_dir, resolved_config, task_text)
+                    cmd = build_command(main_py, work_dir, resolved_config, task_text, repo_root)
                     code = maybe_run_task(True, cmd, cwd=work_dir)
                     (dest_dir / "run_exit_code.txt").write_text(str(code))
 
@@ -215,7 +216,7 @@ def main():
                         task_text = args.task_template.format(category=category2, task_id=task_id2, instruction=instruction2 or "")
                     elif args.task_from_instruction and instruction2:
                         task_text = instruction2
-                    cmd = build_command(main_py, work_dir, resolved_config, task_text)
+                    cmd = build_command(main_py, work_dir, resolved_config, task_text, repo_root)
                     code = maybe_run_task(True, cmd, cwd=work_dir)
                     (dest_dir2 / "run_exit_code.txt").write_text(str(code))
 
