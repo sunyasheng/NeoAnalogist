@@ -216,7 +216,6 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     use_smart_crop=arguments.get("use_smart_crop", True),
                     seed=arguments.get("seed", None),
                     output_path=arguments.get("output_path", None),
-                    thought=thought,
                 )
                 action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
             # ================================================
@@ -229,7 +228,6 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     mask_path=arguments.get("mask_path", ""),
                     dilate_kernel_size=arguments.get("dilate_kernel_size", 0),
                     output_path=arguments.get("output_path", None),
-                    thought=thought,
                 )
                 action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
             # ================================================
