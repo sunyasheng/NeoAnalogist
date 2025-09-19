@@ -61,6 +61,7 @@ async def grounding_sam_segment(
     # Create temp cache dir for this request
     temp_cache_dir = os.path.join("./tmp/gsam_cache", f"task_{uuid.uuid4()}")
     os.makedirs(temp_cache_dir, exist_ok=True)
+    print(f"DEBUG: Created temp cache dir: {temp_cache_dir}")
     
     try:
         # Build ontology from prompt - support both simple labels and complex descriptions
@@ -81,11 +82,14 @@ async def grounding_sam_segment(
         
         # Create ontology mapping each label to itself
         ontology = CaptionOntology({label: label for label in labels})
+        print(f"DEBUG: Created ontology with labels: {labels}")
 
         # Instantiate GSAM2 model per request
+        print("DEBUG: Instantiating GroundedSAM2 model...")
         model = GroundedSAM2(
             ontology=ontology,
         )
+        print("DEBUG: Model instantiated successfully")
 
         # Save upload to temp path for predict
         import tempfile
