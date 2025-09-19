@@ -4,7 +4,7 @@
         "providers": {
             "litellm": {
                 "use": true,
-                "model": "openai/gpt-5-mini",
+                "model": "openai/o3-mini",
                 "fallback_models": [],
                 "cache_responses": false
             },
