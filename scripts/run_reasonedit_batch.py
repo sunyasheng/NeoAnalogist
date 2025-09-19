@@ -184,7 +184,9 @@ def main():
                     if args.task_template:
                         task_text = args.task_template.format(category=category, task_id=task_id, instruction=instruction or "")
                     elif args.task_from_instruction and instruction:
-                        task_text = instruction
+                        # Include the actual image path in the task
+                        image_path = f"workspace/ReasonEdit/{category}/{task_id}/{task_id}.png"
+                        task_text = f"{instruction}\n\nImage path: {image_path}"
                     cmd = build_command(main_py, work_dir, resolved_config, task_text, repo_root)
                     code = maybe_run_task(True, cmd, cwd=work_dir)
                     (dest_dir / "run_exit_code.txt").write_text(str(code))
@@ -215,7 +217,9 @@ def main():
                     if args.task_template:
                         task_text = args.task_template.format(category=category2, task_id=task_id2, instruction=instruction2 or "")
                     elif args.task_from_instruction and instruction2:
-                        task_text = instruction2
+                        # Include the actual image path in the task
+                        image_path = f"workspace/ReasonEdit/{category2}/{task_id2}/{task_id2}.png"
+                        task_text = f"{instruction2}\n\nImage path: {image_path}"
                     cmd = build_command(main_py, work_dir, resolved_config, task_text, repo_root)
                     code = maybe_run_task(True, cmd, cwd=work_dir)
                     (dest_dir2 / "run_exit_code.txt").write_text(str(code))
@@ -246,7 +250,9 @@ def main():
                 if args.task_template:
                     task_text = args.task_template.format(category=category, task_id=task_id, instruction=instruction or "")
                 elif args.task_from_instruction and instruction:
-                    task_text = instruction
+                    # Include the actual image path in the task
+                    image_path = f"workspace/ReasonEdit/{category}/{task_id}/{task_id}.png"
+                    task_text = f"{instruction}\n\nImage path: {image_path}"
                 cmd = build_command(main_py, work_dir, resolved_config, task_text)
                 code = maybe_run_task(True, cmd, cwd=work_dir)
                 (dest_dir / "run_exit_code.txt").write_text(str(code))
