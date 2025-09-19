@@ -141,8 +141,6 @@ async def grounding_sam_segment(
                 print(f"DEBUG: Class IDs: {results.class_id}")
             if hasattr(results, 'xyxy'):
                 print(f"DEBUG: Bounding boxes: {results.xyxy}")
-        else:
-            print("DEBUG: No masks found in results")
         num = len(masks)
         print(f"DEBUG: Total masks found: {num}")
 
