@@ -69,7 +69,11 @@ async def grounding_sam_segment(
             labels = [t.strip() for t in text_prompt.split(",") if t.strip()]
         else:
             # Single complex description: "reflection of cat in mirror"
-            labels = [text_prompt.strip()]
+            # Ensure the text ends with a period for better GroundingDINO performance
+            clean_prompt = text_prompt.strip()
+            if not clean_prompt.endswith("."):
+                clean_prompt += "."
+            labels = [clean_prompt]
         
         if not labels or not labels[0]:
             return JSONResponse(status_code=400, content={"success": False, "error": "text_prompt is empty"})
