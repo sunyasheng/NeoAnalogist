@@ -40,17 +40,24 @@ def build_eval_prompt(instruction: str) -> str:
 
 **Edit Instruction**: {instruction}
 
+**Analysis Steps**:
+1. **Analyze Original Image**: Identify all objects, their properties, and relationships
+2. **Analyze Edited Image**: Identify what changed and what remained the same
+3. **Compare with Instruction**: Check if the edit matches the instruction requirements
+4. **Identify Errors**: If incorrect, specify exactly what went wrong
+
 **Evaluation Criteria**:
-1. **Correctness**: Does the edited image show the requested changes?
+1. **Correctness**: Does the edited image show the requested changes as specified?
 2. **Quality**: Is the edit well-executed (realistic, properly integrated)?
 3. **Completeness**: Are all parts of the instruction addressed?
+4. **Accuracy**: Was the edit applied correctly according to the instruction?
 
 **Output Format**: Return a JSON object with exactly these fields:
 {{
     "is_correct": true/false,
     "score": 0-10,
     "feedback": "Brief description of what's wrong or what's good",
-    "reasoning": "Detailed explanation of your evaluation"
+    "reasoning": "Detailed explanation including: 1) What was in the original image, 2) What changed in the edited image, 3) How the edit compares to the instruction, 4) Specific errors if any"
 }}
 
 **Scoring Guide**:
@@ -61,10 +68,14 @@ def build_eval_prompt(instruction: str) -> str:
 - 1-2: Very poor, barely follows instruction
 - 0: Complete failure, doesn't follow instruction at all
 
-**Important**: 
-- If the instruction asks to replace something and it's still there, mark as incorrect
-- If the instruction asks to add something and it's missing, mark as incorrect
-- Consider both the presence/absence of requested elements AND the quality of integration
+**Important Analysis Points**:
+- Pay attention to all aspects of the instruction: objects, locations, colors, directions, relationships, etc.
+- If the instruction specifies certain details, check if they were followed correctly
+- Be specific about what was wrong: identify the exact discrepancy between instruction and result
+- Consider both what was changed and what should have been changed
+
+**Example of Good Reasoning**:
+"Original image shows [describe original]. The instruction was to [restate instruction]. However, the edited image shows [describe what actually happened]. This is incorrect because [specific reason why it doesn't match the instruction]."
 """
 
 def call_gpt4o_eval(prompt: str, image_paths: list[str], model: str = "gpt-4o-mini", 
