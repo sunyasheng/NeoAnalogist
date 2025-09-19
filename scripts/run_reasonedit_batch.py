@@ -77,7 +77,30 @@ def prepare_task(category: str, task_id: str, source_dir: Path, dest_root: Path,
     return dest_dir
 
 
-def build_command(main_py: Path, work_dir: Path, config_path: Path, task_text: str | None) -> List[str]:
+def resolve_config_path(repo_root: Path, raw_path: Optional[str]) -> Optional[Path]:
+    if not raw_path:
+        return None
+    p = Path(raw_path)
+    # Absolute path
+    if p.is_absolute() and p.exists():
+        return p
+    # As given (relative to CWD at call site)
+    if p.exists():
+        return p
+    # Try relative to repo root
+    candidate = (repo_root / p).resolve()
+    if candidate.exists():
+        return candidate
+    # Handle optional leading NeoAnalogist/ prefix variations
+    parts = list(p.parts)
+    if parts and parts[0].lower() == "neoanalogist":
+        candidate2 = (repo_root / Path(*parts[1:])).resolve()
+        if candidate2.exists():
+            return candidate2
+    return None
+
+
+def build_command(main_py: Path, work_dir: Path, config_path: Optional[Path], task_text: str | None) -> List[str]:
     cmd = [
         "python",
         str(main_py),
@@ -132,6 +155,7 @@ def main():
     debug_root = Path(args.debug_root)
     workspace_base = Path(args.workspace)
     main_py = default_main_py
+    resolved_config = resolve_config_path(repo_root, args.config) if args.config else None
 
     categories: List[Tuple[str, Path]] = [
         ("3-Mirror", debug_root / "3-Mirror"),
@@ -160,7 +184,7 @@ def main():
                         task_text = args.task_template.format(category=category, task_id=task_id, instruction=instruction or "")
                     elif args.task_from_instruction and instruction:
                         task_text = instruction
-                    cmd = build_command(main_py, work_dir, Path(args.config), task_text)
+                    cmd = build_command(main_py, work_dir, resolved_config, task_text)
                     code = maybe_run_task(True, cmd, cwd=work_dir)
                     (dest_dir / "run_exit_code.txt").write_text(str(code))
 
@@ -191,7 +215,7 @@ def main():
                         task_text = args.task_template.format(category=category2, task_id=task_id2, instruction=instruction2 or "")
                     elif args.task_from_instruction and instruction2:
                         task_text = instruction2
-                    cmd = build_command(main_py, work_dir, Path(args.config), task_text)
+                    cmd = build_command(main_py, work_dir, resolved_config, task_text)
                     code = maybe_run_task(True, cmd, cwd=work_dir)
                     (dest_dir2 / "run_exit_code.txt").write_text(str(code))
 
@@ -222,7 +246,7 @@ def main():
                     task_text = args.task_template.format(category=category, task_id=task_id, instruction=instruction or "")
                 elif args.task_from_instruction and instruction:
                     task_text = instruction
-                cmd = build_command(main_py, work_dir, Path(args.config), task_text)
+                cmd = build_command(main_py, work_dir, resolved_config, task_text)
                 code = maybe_run_task(True, cmd, cwd=work_dir)
                 (dest_dir / "run_exit_code.txt").write_text(str(code))
 
