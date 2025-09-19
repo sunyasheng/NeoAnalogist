@@ -57,6 +57,7 @@ async def grounding_sam_segment(
     output_dir: Optional[str] = Form(None),
     return_type: str = Form("image"),  # image (default) | json
 ):
+    print(f"DEBUG: Received request with text_prompt='{text_prompt}', return_type='{return_type}'")
     # Create temp cache dir for this request
     temp_cache_dir = os.path.join("./tmp/gsam_cache", f"task_{uuid.uuid4()}")
     os.makedirs(temp_cache_dir, exist_ok=True)
