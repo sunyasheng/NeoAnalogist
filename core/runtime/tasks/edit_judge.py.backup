@@ -11,78 +11,14 @@ import time
 import os
 import torch
 import clip
-import base64
-import json
 from PIL import Image
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
-from dotenv import load_dotenv
-from openai import OpenAI
 
 # Import evaluation functions from anybench
 from thirdparty.AnySD.anybench.eval.utils import eval_clip_i, eval_clip_t, eval_distance, is_all_black
 
 logger = logging.getLogger(__name__)
-
-def build_gpt4o_eval_prompt(instruction: str) -> str:
-    """Build evaluation prompt for GPT-4o."""
-    return (
-        "You are a professional digital artist. Evaluate the effectiveness of the AI-edited image following these rules.\n"
-        "Output strictly in JSON and nothing else: {\"score\":[score1,score2],\"reasoning\":\"one short sentence\"}.\n"
-        "Two images are provided: the first is the original, the second is the edited version.\n"
-        "Goal: judge how well the edit instruction was executed in the second image. The two images may be identical if editing failed.\n"
-        "Scoring (0–10):\n"
-        "- score1 (editing success): 0 = not following the instruction at all; 10 = perfectly follows the instruction.\n"
-        "- If the target object in the instruction does not appear in the original image, score1 = 0.\n"
-        "- score2 (degree of over-editing): 0 = scene completely different from original; 10 = minimal yet effective change.\n"
-        "Return score as [score1, score2].\n"
-        f"Editing instruction: {instruction}\n"
-    )
-
-def encode_image_to_data_url(path: str) -> str:
-    """Encode image to base64 data URL."""
-    mime = "image/jpeg"
-    with open(path, "rb") as f:
-        b64 = base64.b64encode(f.read()).decode("utf-8")
-    return f"data:{mime};base64,{b64}"
-
-def call_gpt4o_eval(prompt: str, image_paths: List[str], model: str = "gpt-4o-mini", 
-                   max_tokens: int = 512, temperature: float = 0.2) -> Dict[str, Any]:
-    """Call GPT-4o for image editing evaluation."""
-    # Load API key from environment (.env supported)
-    load_dotenv()
-    # OpenAI() will read OPENAI_API_KEY from environment
-    client = OpenAI()
-
-    # Build multimodal message with two images
-    content = [{"type": "text", "text": prompt}]
-    for p in image_paths[:2]:
-        if not os.path.exists(p):
-            raise FileNotFoundError(f"Image not found: {p}")
-        data_url = encode_image_to_data_url(p)
-        content.append({
-            "type": "image_url",
-            "image_url": {"url": data_url}
-        })
-
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": content}],
-        max_tokens=max_tokens,
-        temperature=temperature,
-    )
-    
-    response_text = resp.choices[0].message.content or ""
-    
-    # Try to parse JSON response
-    try:
-        return json.loads(response_text)
-    except json.JSONDecodeError:
-        logger.warning(f"Failed to parse GPT-4o response as JSON: {response_text}")
-        return {
-            "score": [0, 0],
-            "reasoning": f"Failed to parse response: {response_text[:100]}..."
-        }
 
 @dataclass
 class ImageJudgeResult:
@@ -94,29 +30,20 @@ class ImageJudgeResult:
     overall_score: float
     suggestions: List[str]
     status: str = "success"
-    # GPT-4o evaluation results
-    gpt4o_editing_success: Optional[float] = None
-    gpt4o_over_editing: Optional[float] = None
-    gpt4o_reasoning: Optional[str] = None
 
 class ImageEditJudgeTask:
-    """Task for judging image editing quality using AnyBench metrics and GPT-4o."""
+    """Task for judging image editing quality using AnyBench metrics."""
     
-    def __init__(self, device: Optional[str] = None, clip_model_type: str = "ViT-B/32", 
-                 use_gpt4o: bool = True, gpt4o_model: str = "gpt-4o-mini"):
+    def __init__(self, device: Optional[str] = None, clip_model_type: str = "ViT-B/32"):
         """
         Initialize image edit judge task.
         
         Args:
             device: Device to run on (auto-detect if None)
             clip_model_type: CLIP model type to use
-            use_gpt4o: Whether to use GPT-4o for evaluation
-            gpt4o_model: GPT-4o model to use
         """
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.clip_model_type = clip_model_type
-        self.use_gpt4o = use_gpt4o
-        self.gpt4o_model = gpt4o_model
         self.start_time = time.time()
         
         # Load CLIP model
@@ -240,35 +167,6 @@ class ImageEditJudgeTask:
         
         return suggestions
     
-    async def _evaluate_with_gpt4o(self, original_path: str, edited_path: str, instruction: str) -> Optional[Dict[str, Any]]:
-        """Evaluate image editing quality using GPT-4o."""
-        if not self.use_gpt4o:
-            return None
-            
-        try:
-            prompt = build_gpt4o_eval_prompt(instruction)
-            result = call_gpt4o_eval(
-                prompt=prompt,
-                image_paths=[original_path, edited_path],
-                model=self.gpt4o_model,
-                max_tokens=512,
-                temperature=0.2
-            )
-            
-            # Extract scores from result
-            scores = result.get("score", [0, 0])
-            reasoning = result.get("reasoning", "No reasoning provided")
-            
-            return {
-                "editing_success": float(scores[0]) if len(scores) > 0 else 0.0,
-                "over_editing": float(scores[1]) if len(scores) > 1 else 0.0,
-                "reasoning": reasoning
-            }
-            
-        except Exception as e:
-            logger.error(f"Error in GPT-4o evaluation: {str(e)}")
-            return None
-    
     async def _analyze_with_qwen(self, original_path: str, edited_path: str, input_caption: str, output_caption: str) -> Optional[str]:
         """Analyze image editing quality using Qwen API."""
         try:
@@ -313,8 +211,7 @@ Please provide a concise analysis (2-3 sentences) focusing on the most important
             logger.error(f"Error in Qwen API analysis: {str(e)}")
             return None
     
-    async def run(self, original_path: str, edited_path: str, input_caption: str, output_caption: str, 
-                  use_qwen_analysis: bool = True, instruction: Optional[str] = None) -> ImageJudgeResult:
+    async def run(self, original_path: str, edited_path: str, input_caption: str, output_caption: str, use_qwen_analysis: bool = True) -> ImageJudgeResult:
         """
         Run image editing quality evaluation.
         
@@ -324,7 +221,6 @@ Please provide a concise analysis (2-3 sentences) focusing on the most important
             input_caption: Description of original image
             output_caption: Description of edited image
             use_qwen_analysis: Whether to use Qwen API for intelligent analysis
-            instruction: Editing instruction for GPT-4o evaluation
             
         Returns:
             ImageJudgeResult with evaluation results
@@ -360,23 +256,6 @@ Please provide a concise analysis (2-3 sentences) focusing on the most important
                 if qwen_suggestion:
                     suggestions.append(f"AI Analysis: {qwen_suggestion}")
             
-            # Add GPT-4o evaluation if enabled and instruction provided
-            gpt4o_editing_success = None
-            gpt4o_over_editing = None
-            gpt4o_reasoning = None
-            
-            if self.use_gpt4o and instruction:
-                gpt4o_result = await self._evaluate_with_gpt4o(original_path, edited_path, instruction)
-                if gpt4o_result:
-                    gpt4o_editing_success = gpt4o_result["editing_success"]
-                    gpt4o_over_editing = gpt4o_result["over_editing"]
-                    gpt4o_reasoning = gpt4o_result["reasoning"]
-                    
-                    # Add GPT-4o scores to suggestions
-                    suggestions.append(f"GPT-4o Editing Success: {gpt4o_editing_success:.1f}/10")
-                    suggestions.append(f"GPT-4o Over-editing Score: {gpt4o_over_editing:.1f}/10")
-                    suggestions.append(f"GPT-4o Analysis: {gpt4o_reasoning}")
-            
             execution_time = time.time() - self.start_time
             logger.info(f"Image edit evaluation completed in {execution_time:.2f}s")
             
@@ -387,10 +266,7 @@ Please provide a concise analysis (2-3 sentences) focusing on the most important
                 l2_distance=round(metrics["l2_distance"], 3),
                 overall_score=round(overall_score, 3),
                 suggestions=suggestions,
-                status="success",
-                gpt4o_editing_success=gpt4o_editing_success,
-                gpt4o_over_editing=gpt4o_over_editing,
-                gpt4o_reasoning=gpt4o_reasoning
+                status="success"
             )
             
         except Exception as e:
@@ -417,22 +293,9 @@ Please provide a concise analysis (2-3 sentences) focusing on the most important
             f"L1 Distance: {result.l1_distance:.3f}",
             f"L2 Distance: {result.l2_distance:.3f}",
             f"Overall Score: {result.overall_score:.3f}",
-        ]
-        
-        # Add GPT-4o results if available
-        if result.gpt4o_editing_success is not None:
-            feedback_lines.extend([
-                "",
-                "=== GPT-4O EVALUATION ===",
-                f"Editing Success: {result.gpt4o_editing_success:.1f}/10",
-                f"Over-editing Score: {result.gpt4o_over_editing:.1f}/10",
-                f"GPT-4o Analysis: {result.gpt4o_reasoning}",
-            ])
-        
-        feedback_lines.extend([
             "",
             "RECOMMENDATIONS:"
-        ])
+        ]
         
         for i, suggestion in enumerate(result.suggestions, 1):
             feedback_lines.append(f"{i}. {suggestion}")
@@ -447,8 +310,7 @@ Please provide a concise analysis (2-3 sentences) focusing on the most important
 
 
 # Convenience function
-async def judge_image_edit(original_path: str, edited_path: str, prompt: str, 
-                          use_gpt4o: bool = True, use_qwen: bool = True) -> ImageJudgeResult:
+async def judge_image_edit(original_path: str, edited_path: str, prompt: str) -> ImageJudgeResult:
     """
     Convenience function for image edit evaluation.
     
@@ -456,14 +318,12 @@ async def judge_image_edit(original_path: str, edited_path: str, prompt: str,
         original_path: Path to original image
         edited_path: Path to edited image
         prompt: Text prompt used for editing
-        use_gpt4o: Whether to use GPT-4o evaluation
-        use_qwen: Whether to use Qwen analysis
         
     Returns:
         ImageJudgeResult with evaluation results
     """
-    task = ImageEditJudgeTask(use_gpt4o=use_gpt4o)
-    return await task.run(original_path, edited_path, prompt, prompt, use_qwen, prompt)
+    task = ImageEditJudgeTask()
+    return await task.run(original_path, edited_path, prompt)
 
 
 def print_results(result: ImageJudgeResult):
