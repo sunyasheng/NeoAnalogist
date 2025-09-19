@@ -62,10 +62,19 @@ async def grounding_sam_segment(
     os.makedirs(temp_cache_dir, exist_ok=True)
     
     try:
-        # Build ontology from prompt (comma/space split)
-        labels = [t.strip() for t in text_prompt.split(",") if t.strip()]
-        if not labels:
+        # Build ontology from prompt - support both simple labels and complex descriptions
+        # First try comma separation, then fall back to treating as single complex description
+        if "," in text_prompt:
+            # Multiple simple labels: "cat, dog, person"
+            labels = [t.strip() for t in text_prompt.split(",") if t.strip()]
+        else:
+            # Single complex description: "reflection of cat in mirror"
+            labels = [text_prompt.strip()]
+        
+        if not labels or not labels[0]:
             return JSONResponse(status_code=400, content={"success": False, "error": "text_prompt is empty"})
+        
+        # Create ontology mapping each label to itself
         ontology = CaptionOntology({label: label for label in labels})
 
         # Instantiate GSAM2 model per request

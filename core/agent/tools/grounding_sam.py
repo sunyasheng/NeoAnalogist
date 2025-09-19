@@ -13,7 +13,7 @@ GroundingSAMTool: ChatCompletionToolParam = {
         "name": "grounding_sam_segment",
             "description": (
             "Text-prompted instance segmentation using GroundingSAM (Florence2+SAM2). "
-            "Provide container-absolute image path and comma-separated text prompt labels. "
+            "Supports both simple labels (e.g., 'cat, dog') and complex descriptions for precise targeting. "
             "Streams PNG and saves to output_path."
         ),
         "parameters": {
@@ -25,7 +25,7 @@ GroundingSAMTool: ChatCompletionToolParam = {
                 },
                 "text_prompt": {
                     "type": "string",
-                    "description": "Comma-separated labels, e.g., 'person,car'.",
+                    "description": "Text prompt for segmentation. Can be simple labels (e.g., 'cat, dog') or complex descriptions for precise targeting.",
                 },
                 "output_path": {
                     "type": "string",
