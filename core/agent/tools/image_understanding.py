@@ -5,7 +5,7 @@ Comprehensive image analysis tool that can analyze images with masks, bounding b
 """
 
 from typing import Dict, Any
-from litellm.types.utils import ChatCompletionToolParam
+from litellm import ChatCompletionToolParam
 
 ImageUnderstandingTool: ChatCompletionToolParam = {
     "type": "function",
