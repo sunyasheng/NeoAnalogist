@@ -254,6 +254,127 @@ async def grounded_sam_segment(
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
+@app.post("/grounded-sam/segment-masks")
+async def grounded_sam_segment_masks(
+    image: UploadFile = File(...),
+    boxes: str = Form(...),  # JSON string of bounding boxes
+    labels: str = Form(...),  # JSON string of labels
+    mask_index: int = Form(0),  # Which mask to return (0-based index)
+):
+    """Segment objects and return individual mask image by index."""
+    global _grounding_dino_model, _sam_predictor, _device
+    
+    if _grounding_dino_model is None or _sam_predictor is None:
+        return JSONResponse(status_code=503, content={"success": False, "error": "Models not loaded"})
+    
+    try:
+        # Parse inputs
+        boxes_data = json.loads(boxes)
+        labels_data = json.loads(labels)
+        
+        if len(boxes_data) != len(labels_data):
+            return JSONResponse(status_code=400, content={"success": False, "error": "Number of boxes and labels must match"})
+        
+        if mask_index < 0 or mask_index >= len(boxes_data):
+            return JSONResponse(status_code=400, content={"success": False, "error": f"mask_index {mask_index} out of range [0, {len(boxes_data)-1}]"})
+        
+        # Load image
+        image_data = await image.read()
+        image_pil = Image.open(io.BytesIO(image_data)).convert("RGB")
+        image_cv = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)
+        image_rgb = cv2.cvtColor(image_cv, cv2.COLOR_BGR2RGB)
+        
+        # Convert boxes to numpy array
+        boxes_array = np.array(boxes_data)
+        
+        # Perform segmentation
+        masks = segment_with_boxes(_sam_predictor, image_rgb, boxes_array, labels_data)
+        
+        # Get the specific mask
+        mask = masks[mask_index]
+        label = labels_data[mask_index]
+        
+        # Convert mask to image
+        mask_image = (mask * 255).astype(np.uint8)
+        mask_pil = Image.fromarray(mask_image, mode='L')
+        
+        # Convert to bytes
+        mask_buffer = io.BytesIO()
+        mask_pil.save(mask_buffer, format='PNG')
+        mask_buffer.seek(0)
+        
+        return StreamingResponse(
+            io.BytesIO(mask_buffer.getvalue()),
+            media_type="image/png",
+            headers={"Content-Disposition": f"attachment; filename=mask_{mask_index}_{label.replace(' ', '_')}.png"}
+        )
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
+@app.post("/grounded-sam/segment-all-masks")
+async def grounded_sam_segment_all_masks(
+    image: UploadFile = File(...),
+    boxes: str = Form(...),  # JSON string of bounding boxes
+    labels: str = Form(...),  # JSON string of labels
+    output_dir: str = Form(...),  # Directory to save all masks
+):
+    """Segment objects and save all individual mask images to specified directory."""
+    global _grounding_dino_model, _sam_predictor, _device
+    
+    if _grounding_dino_model is None or _sam_predictor is None:
+        return JSONResponse(status_code=503, content={"success": False, "error": "Models not loaded"})
+    
+    try:
+        # Parse inputs
+        boxes_data = json.loads(boxes)
+        labels_data = json.loads(labels)
+        
+        if len(boxes_data) != len(labels_data):
+            return JSONResponse(status_code=400, content={"success": False, "error": "Number of boxes and labels must match"})
+        
+        # Load image
+        image_data = await image.read()
+        image_pil = Image.open(io.BytesIO(image_data)).convert("RGB")
+        image_cv = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)
+        image_rgb = cv2.cvtColor(image_cv, cv2.COLOR_BGR2RGB)
+        
+        # Convert boxes to numpy array
+        boxes_array = np.array(boxes_data)
+        
+        # Perform segmentation
+        masks = segment_with_boxes(_sam_predictor, image_rgb, boxes_array, labels_data)
+        
+        # Create output directory
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Save all masks
+        mask_paths = []
+        for i, (box, label, mask) in enumerate(zip(boxes_data, labels_data, masks)):
+            # Convert mask to image
+            mask_image = (mask * 255).astype(np.uint8)
+            mask_pil = Image.fromarray(mask_image, mode='L')
+            
+            # Save mask
+            mask_filename = f"mask_{i}_{label.replace(' ', '_')}.png"
+            mask_path = os.path.join(output_dir, mask_filename)
+            mask_pil.save(mask_path)
+            mask_paths.append(mask_path)
+        
+        return {
+            "success": True,
+            "num_masks": len(mask_paths),
+            "mask_paths": mask_paths,
+            "output_dir": output_dir
+        }
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
 @app.get("/alive")
 async def alive():
     """Health check endpoint."""
