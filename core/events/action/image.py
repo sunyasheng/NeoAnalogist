@@ -219,3 +219,25 @@ class LAMARemoveAction(Action):
     def __str__(self) -> str:
         return f"LAMA remove object with mask: {self.mask_path} on {self.image_path}"
 
+
+@dataclass
+class GroundingDINOAction(Action):
+    """Detect objects in image using GroundingDINO."""
+
+    image_path: str = ""
+    text_prompt: str = ""
+    box_threshold: float = 0.3
+    text_threshold: float = 0.25
+    return_type: str = "json"  # json | image
+    output_path: Optional[str] = None
+    timeout: int = 600
+    thought: str = ""
+
+    # action routing key used by server/client
+    action: str = "grounding_dino_detect"
+    runnable: ClassVar[bool] = True
+
+    @property
+    def message(self) -> str:
+        return f"Detect objects in image: {self.image_path} (prompt: {self.text_prompt})"
+

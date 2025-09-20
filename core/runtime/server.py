@@ -80,8 +80,8 @@ from core.runtime.tasks.repo_edit import RepoEditTask
 from core.runtime.tasks.pdf_query_task import PDFQueryTool
 from core.events.observation.repo import RepoEditObservation
 from core.runtime.plugins.jupyter import JupyterPlugin
-from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, InpaintRemoveAction, SDXLInpaintAction, LAMARemoveAction
-from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation, GroundingSAMObservation, InpaintRemoveObservation, SDXLInpaintObservation, LAMARemoveObservation
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, GroundingDINOAction, InpaintRemoveAction, SDXLInpaintAction, LAMARemoveAction
+from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation, GroundingSAMObservation, GroundingDINOObservation, InpaintRemoveObservation, SDXLInpaintObservation, LAMARemoveObservation
 from core.events.observation.repo import GoTEditObservation, QwenAPIObservation, AnyDoorEditObservation
 from core.runtime.tasks.image_entity_extract import ImageEntityExtractTask
 from core.runtime.tasks.got_edit import GoTEditClient
@@ -1288,6 +1288,70 @@ class ActionExecutor:
         except Exception as e:
             logger.error(f"Error in grounding_sam: {str(e)}")
             return GroundingSAMObservation(success=False, error_message=f"Failed to run GroundingSAM: {str(e)}")
+
+    async def grounding_dino_detect(self, action: GroundingDINOAction) -> GroundingDINOObservation:
+        """Call GroundingDINO API for object detection."""
+        try:
+            import requests
+            base_url = os.environ.get("GROUNDING_DINO_BASE_URL", "http://localhost:8502")
+            url = f"{base_url.rstrip('/')}/grounding-dino/detect"
+
+            if not action.image_path or not action.text_prompt:
+                return GroundingDINOObservation(success=False, error_message="image_path and text_prompt are required")
+
+            files = {
+                "image": open(action.image_path, "rb"),
+            }
+            data = {
+                "text_prompt": action.text_prompt,
+                "box_threshold": action.box_threshold,
+                "text_threshold": action.text_threshold,
+                "return_type": action.return_type,
+            }
+
+            try:
+                resp = requests.post(url, files=files, data=data, timeout=action.timeout)
+                resp.raise_for_status()
+                
+                if action.return_type == "image":
+                    # Handle image response
+                    img_bytes = resp.content
+                    saved_path = ""
+                    if action.output_path:
+                        with open(action.output_path, "wb") as f:
+                            f.write(img_bytes)
+                        saved_path = action.output_path
+                    
+                    return GroundingDINOObservation(
+                        content="GroundingDINO detection completed with annotated image",
+                        num_detections=0,  # We don't have detection count for image mode
+                        detections=[],
+                        output_path=saved_path,
+                        success=True,
+                    )
+                else:
+                    # Handle JSON response
+                    result = resp.json()
+                    if result.get("success", False):
+                        return GroundingDINOObservation(
+                            content="GroundingDINO detection completed",
+                            num_detections=result.get("num_detections", 0),
+                            detections=result.get("detections", []),
+                            success=True,
+                        )
+                    else:
+                        return GroundingDINOObservation(
+                            success=False,
+                            error_message=result.get("error", "Unknown error")
+                        )
+            finally:
+                try:
+                    files["image"].close()
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.error(f"Error in grounding_dino_detect: {str(e)}")
+            return GroundingDINOObservation(success=False, error_message=f"Failed to run GroundingDINO: {str(e)}")
 
     async def inpaint_remove(self, action: InpaintRemoveAction) -> InpaintRemoveObservation:
         """Call LAMA API with streaming image response and save to desired path/dir."""

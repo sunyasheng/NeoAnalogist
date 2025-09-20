@@ -30,7 +30,7 @@ from core.events.observation.repo import GoTEditObservation, QwenAPIObservation
 from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction
 from core.events.observation.image import ImageEditJudgeObservation
 from core.events.action.image import AnyDoorEditAction
-from core.events.action.image import GroundingSAMAction, InpaintRemoveAction, SDXLInpaintAction, LAMARemoveAction
+from core.events.action.image import GroundingSAMAction, GroundingDINOAction, InpaintRemoveAction, SDXLInpaintAction, LAMARemoveAction
 from core.events.observation.image import SDXLInpaintObservation, LAMARemoveObservation
 
 # Import PDF query functionality
@@ -751,6 +751,13 @@ def main():
     parser.add_argument("--grounding-sam-text-prompt", type=str, help="Text prompt (comma-separated labels) for GroundingSAM", metavar='TEXT')
     parser.add_argument("--grounding-sam-return-type", type=str, choices=["image", "json"], default="image", help="Return type: image (PNG stream) or json (paths)", metavar='RET')
     parser.add_argument("--grounding-sam-output-dir", type=str, help="Container path to save masks when using return_type=json", metavar='OUT_DIR')
+    # GroundingDINO (text-prompted detection)
+    parser.add_argument("--grounding-dino-image-path", type=str, help="Container path to image for GroundingDINO detection", metavar='IMG_PATH')
+    parser.add_argument("--grounding-dino-text-prompt", type=str, help="Text prompt for GroundingDINO detection", metavar='TEXT')
+    parser.add_argument("--grounding-dino-box-threshold", type=float, default=0.3, help="Box confidence threshold for GroundingDINO", metavar='THRESH')
+    parser.add_argument("--grounding-dino-text-threshold", type=float, default=0.25, help="Text confidence threshold for GroundingDINO", metavar='THRESH')
+    parser.add_argument("--grounding-dino-return-type", type=str, choices=["image", "json"], default="json", help="Return type: image (annotated) or json (detections)", metavar='RET')
+    parser.add_argument("--grounding-dino-output-path", type=str, help="Container path to save annotated image when using return_type=image", metavar='OUT_PATH')
     # Inpaint-Anything (object removal)
     parser.add_argument("--inpaint-remove-image-path", type=str, help="Container path to image for Inpaint-Anything removal", metavar='IMG_PATH')
     parser.add_argument("--inpaint-remove-point-coords", type=str, help="Point coordinates as 'x,y' for object removal", metavar='COORDS')
@@ -1049,6 +1056,31 @@ def main():
                 'error': getattr(result, 'error_message', ''),
                 'num_instances': getattr(result, 'num_instances', None),
                 'mask_paths': getattr(result, 'mask_paths', []),
+                'content': getattr(result, 'content', ''),
+            })
+        elif args.grounding_dino_image_path or args.grounding_dino_text_prompt:
+            # GroundingDINO detection
+            img_path = to_container_path(args.grounding_dino_image_path or "")
+            if not img_path or not args.grounding_dino_text_prompt:
+                print("Error: --grounding-dino-image-path and --grounding-dino-text-prompt are required")
+                return
+
+            action = GroundingDINOAction(
+                image_path=img_path,
+                text_prompt=args.grounding_dino_text_prompt,
+                box_threshold=args.grounding_dino_box_threshold,
+                text_threshold=args.grounding_dino_text_threshold,
+                return_type=args.grounding_dino_return_type,
+                output_path=to_container_path(args.grounding_dino_output_path) if args.grounding_dino_output_path else None,
+            )
+            
+            result = runtime.grounding_dino_detect(action)
+            print({
+                'success': getattr(result, 'success', False),
+                'error': getattr(result, 'error_message', ''),
+                'num_detections': getattr(result, 'num_detections', 0),
+                'detections': getattr(result, 'detections', []),
+                'output_path': getattr(result, 'output_path', ''),
                 'content': getattr(result, 'content', ''),
             })
         elif args.inpaint_remove_image_path or args.inpaint_remove_point_coords or args.inpaint_remove_mask_path:

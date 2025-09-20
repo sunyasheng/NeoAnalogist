@@ -107,3 +107,20 @@ class LAMARemoveObservation(Observation):
     observation: str = "LAMA_REMOVE"
 
 
+@dataclass
+class GroundingDINOObservation(Observation):
+    """Observation for GroundingDINO detection results."""
+    
+    content: str = ""
+    num_detections: int = 0
+    detections: list = None  # List of detection dicts
+    output_path: str = ""  # Path to annotated image if return_type=image
+    success: bool = True
+    error_message: str = ""
+    observation: str = "GROUNDING_DINO_DETECT"
+    
+    def __post_init__(self):
+        if self.detections is None:
+            self.detections = []
+
+
