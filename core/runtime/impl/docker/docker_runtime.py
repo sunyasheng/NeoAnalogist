@@ -30,7 +30,7 @@ from core.events.observation.repo import GoTEditObservation, QwenAPIObservation
 from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction
 from core.events.observation.image import ImageEditJudgeObservation
 from core.events.action.image import AnyDoorEditAction
-from core.events.action.image import GroundingSAMAction, GroundingDINOAction, InpaintRemoveAction, SDXLInpaintAction, LAMARemoveAction
+from core.events.action.image import GroundingSAMAction, GroundingDINOAction, InpaintRemoveAction, SDXLInpaintAction, LAMARemoveAction, ImageUnderstandingAction
 from core.events.observation.image import SDXLInpaintObservation, LAMARemoveObservation
 
 # Import PDF query functionality
