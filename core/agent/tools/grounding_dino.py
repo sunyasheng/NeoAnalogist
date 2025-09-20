@@ -12,7 +12,7 @@ GroundingDINOTool: ChatCompletionToolParam = {
     "function": {
         "name": "grounding_dino_detect",
         "description": (
-            "Text-prompted object detection using GroundingDINO. "
+            "Text-prompted object detection using GroundedSAM (includes GroundingDINO functionality). "
             "Detects objects in images based on text descriptions. "
             "Returns bounding boxes and labels for detected objects."
         ),

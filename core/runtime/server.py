@@ -1290,11 +1290,11 @@ class ActionExecutor:
             return GroundingSAMObservation(success=False, error_message=f"Failed to run GroundingSAM: {str(e)}")
 
     async def grounding_dino_detect(self, action: GroundingDINOAction) -> GroundingDINOObservation:
-        """Call GroundingDINO API for object detection."""
+        """Call GroundedSAM API for object detection (replaces GroundingDINO)."""
         try:
             import requests
-            base_url = os.environ.get("GROUNDING_DINO_BASE_URL", "http://10.64.74.69:8502")
-            url = f"{base_url.rstrip('/')}/grounding-dino/detect"
+            base_url = os.environ.get("GROUNDED_SAM_BASE_URL", "http://10.64.74.69:8503")
+            url = f"{base_url.rstrip('/')}/grounded-sam/detect"
 
             if not action.image_path or not action.text_prompt:
                 return GroundingDINOObservation(success=False, error_message="image_path and text_prompt are required")
@@ -1323,7 +1323,7 @@ class ActionExecutor:
                         saved_path = action.output_path
                     
                     return GroundingDINOObservation(
-                        content="GroundingDINO detection completed with annotated image",
+                        content="GroundedSAM detection completed with annotated image",
                         num_detections=0,  # We don't have detection count for image mode
                         detections=[],
                         output_path=saved_path,
@@ -1334,7 +1334,7 @@ class ActionExecutor:
                     result = resp.json()
                     if result.get("success", False):
                         return GroundingDINOObservation(
-                            content="GroundingDINO detection completed",
+                            content="GroundedSAM detection completed",
                             num_detections=result.get("num_detections", 0),
                             detections=result.get("detections", []),
                             success=True,
@@ -1351,7 +1351,7 @@ class ActionExecutor:
                     pass
         except Exception as e:
             logger.error(f"Error in grounding_dino_detect: {str(e)}")
-            return GroundingDINOObservation(success=False, error_message=f"Failed to run GroundingDINO: {str(e)}")
+            return GroundingDINOObservation(success=False, error_message=f"Failed to run GroundedSAM: {str(e)}")
 
     async def inpaint_remove(self, action: InpaintRemoveAction) -> InpaintRemoveObservation:
         """Call LAMA API with streaming image response and save to desired path/dir."""
