@@ -213,6 +213,10 @@ class DockerRuntime(ActionExecutionClient):
         """Call GroundingDINO detection via the container server (client-server pattern)."""
         return self.send_action_for_execution(action)
 
+    def image_understanding(self, action: ImageUnderstandingAction):
+        """Call image understanding analysis via the container server (client-server pattern)."""
+        return self.send_action_for_execution(action)
+
     # ===== AnyDoor API helper (calls host AnyDoor FastAPI from inside container) =====
     # Removed client-side direct AnyDoor calls to keep client-server pattern only
 
