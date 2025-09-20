@@ -136,17 +136,36 @@ def segment_with_boxes(sam_predictor, image, boxes, labels):
                 result_masks.append(np.zeros(image.shape[:2], dtype=bool))
                 continue
             
-            masks, scores, logits = sam_predictor.predict(
-                box=box,
-                multimask_output=True
-            )
-            print(f"DEBUG: Box {i} - got {len(masks)} masks, scores: {scores}")
+            # Ensure box coordinates are within image bounds
+            H, W = image.shape[:2]
+            box[0] = max(0, min(W-1, box[0]))  # x1
+            box[1] = max(0, min(H-1, box[1]))  # y1
+            box[2] = max(0, min(W-1, box[2]))  # x2
+            box[3] = max(0, min(H-1, box[3]))  # y2
             
-            # Select the best mask
-            index = np.argmax(scores)
-            best_mask = masks[index]
-            print(f"DEBUG: Box {i} - selected mask {index}, shape: {best_mask.shape}, unique values: {np.unique(best_mask)}")
-            result_masks.append(best_mask)
+            # Ensure x2 > x1 and y2 > y1
+            if box[2] <= box[0] or box[3] <= box[1]:
+                print(f"WARNING: Box {i} has invalid dimensions: {box}")
+                result_masks.append(np.zeros(image.shape[:2], dtype=bool))
+                continue
+            
+            print(f"DEBUG: Box {i} after bounds check: {box}")
+            
+            try:
+                masks, scores, logits = sam_predictor.predict(
+                    box=box,
+                    multimask_output=True
+                )
+                print(f"DEBUG: Box {i} - got {len(masks)} masks, scores: {scores}")
+                
+                # Select the best mask
+                index = np.argmax(scores)
+                best_mask = masks[index]
+                print(f"DEBUG: Box {i} - selected mask {index}, shape: {best_mask.shape}, unique values: {np.unique(best_mask)}")
+                result_masks.append(best_mask)
+            except Exception as e:
+                print(f"ERROR: Box {i} failed SAM prediction: {e}")
+                result_masks.append(np.zeros(image.shape[:2], dtype=bool))
         else:
             print(f"Warning: Invalid box format for box {i}: {box}")
             # Create empty mask
@@ -528,11 +547,20 @@ async def grounded_sam_detect_and_segment(
         # GroundingDINO returns normalized coordinates [0,1], convert to pixel coordinates
         size = image_pil.size
         H, W = size[1], size[0]
+        print(f"DEBUG: Image size: W={W}, H={H}")
         boxes_for_sam = []
         for i in range(boxes_filt.size(0)):
             # Convert from normalized [0,1] to pixel coordinates [x1, y1, x2, y2]
             box = boxes_filt[i] * torch.Tensor([W, H, W, H])
-            boxes_for_sam.append(box.cpu().numpy())
+            box_np = box.cpu().numpy()
+            print(f"DEBUG: Box {i} converted to pixels: {box_np}")
+            # Ensure coordinates are within image bounds
+            box_np[0] = max(0, min(W-1, box_np[0]))  # x1
+            box_np[1] = max(0, min(H-1, box_np[1]))  # y1
+            box_np[2] = max(0, min(W-1, box_np[2]))  # x2
+            box_np[3] = max(0, min(H-1, box_np[3]))  # y2
+            print(f"DEBUG: Box {i} after bounds check: {box_np}")
+            boxes_for_sam.append(box_np)
         
         # Step 2: Segment objects with SAM
         masks = segment_with_boxes(_sam_predictor, image_rgb, boxes_for_sam, pred_phrases)
