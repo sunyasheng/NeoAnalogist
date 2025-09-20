@@ -486,16 +486,26 @@ async def grounded_sam_detect_and_segment(
                 "masks": []
             }
         
+        # Convert boxes to proper format for SAM
+        size = image_pil.size
+        H, W = size[1], size[0]
+        boxes_for_sam = []
+        for i in range(boxes_filt.size(0)):
+            box = boxes_filt[i] * torch.Tensor([W, H, W, H])
+            box[:2] -= box[2:] / 2
+            box[2:] += box[:2]
+            boxes_for_sam.append(box.cpu().numpy())
+        
         # Step 2: Segment objects with SAM
-        masks = segment_with_boxes(_sam_predictor, image_rgb, boxes_filt, pred_phrases)
+        masks = segment_with_boxes(_sam_predictor, image_rgb, boxes_for_sam, pred_phrases)
         
         if return_type == "json":
             # Return both detections and masks
             detections = []
             mask_paths = []
             
-            for i, (box, label, mask, score) in enumerate(zip(boxes_filt, pred_phrases, masks, scores)):
-                x0, y0, x1, y1 = box.tolist()
+            for i, (box, label, mask, score) in enumerate(zip(boxes_for_sam, pred_phrases, masks, scores)):
+                x0, y0, x1, y1 = box
                 detections.append({
                     "box": [int(x0), int(y0), int(x1), int(y1)],
                     "label": label,
@@ -525,7 +535,7 @@ async def grounded_sam_detect_and_segment(
             # Return annotated image with masks
             annotated_image = image_cv.copy()
             
-            for i, (box, label, mask, score) in enumerate(zip(boxes_filt, pred_phrases, masks, scores)):
+            for i, (box, label, mask, score) in enumerate(zip(boxes_for_sam, pred_phrases, masks, scores)):
                 # Create colored mask
                 color = np.random.randint(0, 255, 3).tolist()
                 colored_mask = np.zeros_like(image_cv)
@@ -535,7 +545,7 @@ async def grounded_sam_detect_and_segment(
                 annotated_image = cv2.addWeighted(annotated_image, 0.7, colored_mask, 0.3, 0)
                 
                 # Draw bounding box
-                x0, y0, x1, y1 = box.tolist()
+                x0, y0, x1, y1 = box
                 cv2.rectangle(annotated_image, (int(x0), int(y0)), (int(x1), int(y1)), color, 2)
                 
                 # Draw label
