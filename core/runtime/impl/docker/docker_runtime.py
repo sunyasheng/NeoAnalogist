@@ -209,6 +209,10 @@ class DockerRuntime(ActionExecutionClient):
         """Call GroundingSAM segmentation via the container server (client-server pattern)."""
         return self.send_action_for_execution(action)
 
+    def grounding_dino_detect(self, action: GroundingDINOAction):
+        """Call GroundingDINO detection via the container server (client-server pattern)."""
+        return self.send_action_for_execution(action)
+
     # ===== AnyDoor API helper (calls host AnyDoor FastAPI from inside container) =====
     # Removed client-side direct AnyDoor calls to keep client-server pattern only
 
