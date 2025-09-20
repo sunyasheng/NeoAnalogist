@@ -438,8 +438,15 @@ async def grounded_sam_detect(
         detections = []
         for box, label in zip(boxes_filt, pred_phrases):
             x0, y0, x1, y1 = box.tolist()
+            # Convert from normalized coordinates [0,1] to pixel coordinates
+            size = image_pil.size
+            W, H = size[0], size[1]
+            x0_pixel = int(x0 * W)
+            y0_pixel = int(y0 * H)
+            x1_pixel = int(x1 * W)
+            y1_pixel = int(y1 * H)
             detections.append({
-                "box": [int(x0), int(y0), int(x1), int(y1)],
+                "box": [x0_pixel, y0_pixel, x1_pixel, y1_pixel],
                 "label": label,
                 "confidence": float(label.split('(')[-1][:-1]) if '(' in label and ')' in label else 0.0
             })
