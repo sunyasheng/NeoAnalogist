@@ -1213,7 +1213,7 @@ class ActionExecutor:
             import requests
             import base64 as _b64
             base_url = os.environ.get("GROUNDING_SAM_BASE_URL", "http://10.64.74.69:8503")
-            url = f"{base_url.rstrip('/')}/grounded-sam/segment"
+            url = f"{base_url.rstrip('/')}/grounded-sam/detect-and-segment"
 
             if not action.image_path or not action.text_prompt:
                 return GroundingSAMObservation(success=False, error_message="image_path and text_prompt are required")
@@ -1223,6 +1223,8 @@ class ActionExecutor:
             }
             data = {
                 "text_prompt": action.text_prompt,
+                "box_threshold": 0.3,
+                "text_threshold": 0.25,
                 "return_type": action.return_type or "image",
             }
             # Always request streaming image response; JSON mode is not supported
