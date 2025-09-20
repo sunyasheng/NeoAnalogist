@@ -1213,7 +1213,7 @@ class ActionExecutor:
             import requests
             import base64 as _b64
             base_url = os.environ.get("GROUNDING_SAM_BASE_URL", "http://10.64.74.69:8503")
-            url = f"{base_url.rstrip('/')}/grounding-sam/segment"
+            url = f"{base_url.rstrip('/')}/grounded-sam/segment"
 
             if not action.image_path or not action.text_prompt:
                 return GroundingSAMObservation(success=False, error_message="image_path and text_prompt are required")
