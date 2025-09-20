@@ -103,9 +103,13 @@ def segment_with_boxes(sam_predictor, image, boxes, labels):
         # Convert box format if needed
         if isinstance(box, list):
             box = np.array(box)
+        elif hasattr(box, 'cpu'):  # PyTorch tensor
+            box = box.cpu().numpy()
         
         # Ensure box is in correct format [x1, y1, x2, y2]
         if len(box) == 4:
+            # Convert to float32 numpy array
+            box = box.astype(np.float32)
             masks, scores, logits = sam_predictor.predict(
                 box=box,
                 multimask_output=True
