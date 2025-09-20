@@ -1221,67 +1221,66 @@ class ActionExecutor:
             files = {
                 "image": open(action.image_path, "rb"),
             }
+            # Determine output directory for masks
+            output_dir = None
+            if action.output_dir:
+                output_dir = action.output_dir
+            elif action.output_path:
+                # If output_path is provided, use its directory
+                output_dir = os.path.dirname(action.output_path)
+            
             data = {
                 "text_prompt": action.text_prompt,
                 "box_threshold": 0.3,
                 "text_threshold": 0.25,
-                "return_type": action.return_type or "image",
+                "return_type": "json",  # Request JSON to get mask paths
             }
-            # Always request streaming image response; JSON mode is not supported
-            data["return_type"] = "image"
+            
+            if output_dir:
+                data["output_dir"] = output_dir
 
             try:
-                # Stream when expecting image
-                resp = requests.post(url, files=files, data=data, timeout=600, stream=True)
+                # Request JSON response
+                resp = requests.post(url, files=files, data=data, timeout=600)
                 resp.raise_for_status()
-                # Read content bytes
-                content_type = resp.headers.get("Content-Type", "image/png")
-                img_bytes = resp.content
-                # If caller provided output_path or output_dir, save file accordingly
-                saved_path = ""
-                try:
-                    if action.output_path:
-                        out_path = action.output_path
-                    elif action.output_dir:
-                        os.makedirs(action.output_dir, exist_ok=True)
-                        out_path = os.path.join(action.output_dir, "mask_0.png")
-                    else:
-                        out_path = ""
-                    if out_path:
-                        with open(out_path, "wb") as f:
-                            f.write(img_bytes)
-                        saved_path = out_path
-                except Exception as _save_err:
-                    logger.warning(f"Failed to save streamed mask: {_save_err}")
-                # Check if the image is empty (all black/zero pixels)
-                is_empty_mask = False
-                if img_bytes:
-                    try:
-                        from PIL import Image
-                        import io
-                        import numpy as np
-                        img = Image.open(io.BytesIO(img_bytes))
-                        img_array = np.array(img)
-                        # Check if all pixels are black (0)
-                        is_empty_mask = np.all(img_array == 0)
-                    except Exception:
-                        pass
                 
-                if is_empty_mask:
+                # Parse JSON response
+                result = resp.json()
+                
+                if not result.get("success", False):
                     return GroundingSAMObservation(
-                        content="No objects detected matching the text prompt",
+                        success=False,
+                        error_message=result.get("error", "Unknown error"),
                         num_instances=0,
                         mask_paths=[],
-                        success=False,
-                        error_message="No objects detected"
+                        content="GroundingSAM segmentation failed"
                     )
-                else:
+                
+                num_detections = result.get("num_detections", 0)
+                num_masks = result.get("num_masks", 0)
+                mask_paths = result.get("mask_paths", [])
+                detections = result.get("detections", [])
+                
+                if num_detections == 0:
                     return GroundingSAMObservation(
-                        content="GroundingSAM segmentation (stream) completed",
-                        num_instances=1 if img_bytes else 0,
-                        mask_paths=[saved_path] if saved_path else [],
-                        success=True,
+                        success=False,
+                        error_message="No objects detected",
+                        num_instances=0,
+                        mask_paths=[],
+                        content="No objects found matching the text prompt"
                     )
+                
+                # Create content summary
+                content = f"GroundingSAM segmentation completed: {num_detections} objects detected, {num_masks} masks generated"
+                if detections:
+                    content += f". Detected: {', '.join([d.get('label', 'unknown') for d in detections])}"
+                
+                return GroundingSAMObservation(
+                    success=True,
+                    num_instances=num_masks,
+                    mask_paths=mask_paths,
+                    content=content
+                )
             finally:
                 try:
                     files["image"].close()
