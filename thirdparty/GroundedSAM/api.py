@@ -375,6 +375,184 @@ async def grounded_sam_segment_all_masks(
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
+@app.post("/grounded-sam/detect")
+async def grounded_sam_detect(
+    image: UploadFile = File(...),
+    text_prompt: str = Form(...),
+    box_threshold: float = Form(0.3),
+    text_threshold: float = Form(0.25),
+    return_type: str = Form("json"),  # json | image
+):
+    """Detect objects using GroundingDINO (same as GroundingDINO API)."""
+    global _grounding_dino_model, _device
+    
+    if _grounding_dino_model is None:
+        return JSONResponse(status_code=503, content={"success": False, "error": "GroundingDINO model not loaded"})
+    
+    try:
+        # Load image
+        image_data = await image.read()
+        image_pil = Image.open(io.BytesIO(image_data)).convert("RGB")
+        _, image_tensor = load_image(image_pil)
+        
+        # Get GroundingDINO output
+        boxes_filt, scores, pred_phrases = get_grounding_output(
+            _grounding_dino_model, image_tensor, text_prompt, box_threshold, text_threshold, device=_device
+        )
+        
+        detections = []
+        for box, label in zip(boxes_filt, pred_phrases):
+            x0, y0, x1, y1 = box.tolist()
+            detections.append({
+                "box": [int(x0), int(y0), int(x1), int(y1)],
+                "label": label,
+                "confidence": float(label.split('(')[-1][:-1]) if '(' in label and ')' in label else 0.0
+            })
+        
+        if return_type == "json":
+            return {
+                "success": True,
+                "num_detections": len(detections),
+                "detections": detections
+            }
+        elif return_type == "image":
+            # Create annotated image
+            image_cv = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)
+            
+            for detection in detections:
+                box = detection["box"]
+                label = detection["label"]
+                confidence = detection["confidence"]
+                
+                # Draw bounding box
+                cv2.rectangle(image_cv, (box[0], box[1]), (box[2], box[3]), (0, 255, 0), 2)
+                
+                # Draw label
+                label_text = f"{label}: {confidence:.2f}"
+                cv2.putText(image_cv, label_text, (box[0], box[1] - 10), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            
+            # Convert to bytes
+            _, buffer = cv2.imencode('.png', image_cv)
+            img_bytes = io.BytesIO(buffer).getvalue()
+            
+            return StreamingResponse(io.BytesIO(img_bytes), media_type="image/png")
+        else:
+            return JSONResponse(status_code=400, content={"success": False, "error": "Invalid return_type"})
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
+@app.post("/grounded-sam/detect-and-segment")
+async def grounded_sam_detect_and_segment(
+    image: UploadFile = File(...),
+    text_prompt: str = Form(...),
+    box_threshold: float = Form(0.3),
+    text_threshold: float = Form(0.25),
+    return_type: str = Form("json"),  # json | image
+    output_dir: Optional[str] = Form(None),
+):
+    """Complete pipeline: detect objects with GroundingDINO and segment with SAM."""
+    global _grounding_dino_model, _sam_predictor, _device
+    
+    if _grounding_dino_model is None or _sam_predictor is None:
+        return JSONResponse(status_code=503, content={"success": False, "error": "Models not loaded"})
+    
+    try:
+        # Load image
+        image_data = await image.read()
+        image_pil = Image.open(io.BytesIO(image_data)).convert("RGB")
+        image_cv = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)
+        image_rgb = cv2.cvtColor(image_cv, cv2.COLOR_BGR2RGB)
+        _, image_tensor = load_image(image_pil)
+        
+        # Step 1: Detect objects with GroundingDINO
+        boxes_filt, scores, pred_phrases = get_grounding_output(
+            _grounding_dino_model, image_tensor, text_prompt, box_threshold, text_threshold, device=_device
+        )
+        
+        if len(boxes_filt) == 0:
+            return {
+                "success": True,
+                "num_detections": 0,
+                "num_masks": 0,
+                "detections": [],
+                "masks": []
+            }
+        
+        # Step 2: Segment objects with SAM
+        masks = segment_with_boxes(_sam_predictor, image_rgb, boxes_filt, pred_phrases)
+        
+        if return_type == "json":
+            # Return both detections and masks
+            detections = []
+            mask_paths = []
+            
+            for i, (box, label, mask, score) in enumerate(zip(boxes_filt, pred_phrases, masks, scores)):
+                x0, y0, x1, y1 = box.tolist()
+                detections.append({
+                    "box": [int(x0), int(y0), int(x1), int(y1)],
+                    "label": label,
+                    "confidence": float(score)
+                })
+                
+                # Save mask if output_dir provided
+                mask_path = None
+                if output_dir:
+                    os.makedirs(output_dir, exist_ok=True)
+                    mask_image = (mask * 255).astype(np.uint8)
+                    mask_pil = Image.fromarray(mask_image, mode='L')
+                    mask_filename = f"mask_{i}_{label.replace(' ', '_').replace('(', '').replace(')', '')}.png"
+                    mask_path = os.path.join(output_dir, mask_filename)
+                    mask_pil.save(mask_path)
+                    mask_paths.append(mask_path)
+            
+            return {
+                "success": True,
+                "num_detections": len(detections),
+                "num_masks": len(masks),
+                "detections": detections,
+                "mask_paths": mask_paths if output_dir else []
+            }
+        
+        elif return_type == "image":
+            # Return annotated image with masks
+            annotated_image = image_cv.copy()
+            
+            for i, (box, label, mask, score) in enumerate(zip(boxes_filt, pred_phrases, masks, scores)):
+                # Create colored mask
+                color = np.random.randint(0, 255, 3).tolist()
+                colored_mask = np.zeros_like(image_cv)
+                colored_mask[mask] = color
+                
+                # Blend with original image
+                annotated_image = cv2.addWeighted(annotated_image, 0.7, colored_mask, 0.3, 0)
+                
+                # Draw bounding box
+                x0, y0, x1, y1 = box.tolist()
+                cv2.rectangle(annotated_image, (int(x0), int(y0)), (int(x1), int(y1)), color, 2)
+                
+                # Draw label
+                label_text = f"{label}: {float(score):.2f}"
+                cv2.putText(annotated_image, label_text, (int(x0), int(y0) - 10), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+            
+            # Convert to bytes
+            _, buffer = cv2.imencode('.png', annotated_image)
+            img_bytes = io.BytesIO(buffer).getvalue()
+            
+            return StreamingResponse(io.BytesIO(img_bytes), media_type="image/png")
+        
+        else:
+            return JSONResponse(status_code=400, content={"success": False, "error": "Invalid return_type"})
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
 @app.get("/alive")
 async def alive():
     """Health check endpoint."""
