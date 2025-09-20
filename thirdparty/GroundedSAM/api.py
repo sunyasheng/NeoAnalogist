@@ -64,6 +64,9 @@ def get_grounding_output(model, image, caption, box_threshold, text_threshold, d
     if not caption.endswith("."):
         caption = caption + "."
     
+    print(f"DEBUG: get_grounding_output called with caption: '{caption}'")
+    print(f"DEBUG: box_threshold: {box_threshold}, text_threshold: {text_threshold}")
+    
     model = model.to(device)
     image = image.to(device)
     
@@ -73,12 +76,19 @@ def get_grounding_output(model, image, caption, box_threshold, text_threshold, d
     logits = outputs["pred_logits"].cpu().sigmoid()[0]  # (nq, 256)
     boxes = outputs["pred_boxes"].cpu()[0]  # (nq, 4)
     
+    print(f"DEBUG: Raw logits shape: {logits.shape}, boxes shape: {boxes.shape}")
+    print(f"DEBUG: Raw boxes (first 5): {boxes[:5]}")
+    print(f"DEBUG: Raw logits max values (first 5): {logits.max(dim=1)[0][:5]}")
+    
     # filter output
     logits_filt = logits.clone()
     boxes_filt = boxes.clone()
     filt_mask = logits_filt.max(dim=1)[0] > box_threshold
     logits_filt = logits_filt[filt_mask]  # num_filt, 256
     boxes_filt = boxes_filt[filt_mask]  # num_filt, 4
+    
+    print(f"DEBUG: After filtering - boxes_filt shape: {boxes_filt.shape}")
+    print(f"DEBUG: After filtering - boxes_filt: {boxes_filt}")
     
     # get phrase
     tokenlizer = model.tokenizer
@@ -91,6 +101,9 @@ def get_grounding_output(model, image, caption, box_threshold, text_threshold, d
         pred_phrase = get_phrases_from_posmap(logit > text_threshold, tokenized, tokenlizer)
         pred_phrases.append(pred_phrase + f"({str(logit.max().item())[:4]})")
         scores.append(logit.max().item())
+    
+    print(f"DEBUG: Final pred_phrases: {pred_phrases}")
+    print(f"DEBUG: Final boxes_filt: {boxes_filt}")
     
     return boxes_filt, torch.Tensor(scores), pred_phrases
 
