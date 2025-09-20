@@ -48,11 +48,11 @@ from core.events.observation import (AgentThinkObservation,
                                      FileReadObservation, NullObservation,
                                      Observation, TaskGraphBuildObservation, SnapshotObservation, RollbackObservation,
                                      RepoPlanObservation, RepoCreateObservation, RepoAnalyzerObservation, RepoUpdateObservation, RepoVerifyObservation, RepoRunObservation, PaperReproductionAnalyzerObservation, RepoDebugObservation, RepoEditObservation, PDFQueryObservation, IPythonRunCellObservation, RepoJudgeObservation, PaperRubricObservation)
-from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation, GroundingSAMObservation, InpaintRemoveObservation, SDXLInpaintObservation, LAMARemoveObservation
+from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation, GroundingSAMObservation, GroundingDINOObservation, InpaintRemoveObservation, SDXLInpaintObservation, LAMARemoveObservation
 from core.events.observation.repo import GoTEditObservation, QwenAPIObservation, AnyDoorEditObservation
 from core.events.observation.experiment import ExperimentManagerObservation
 from core.utils.types.exceptions import LLMMalformedActionError
-from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, InpaintRemoveAction, SDXLInpaintAction, LAMARemoveAction
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, GroundingDINOAction, InpaintRemoveAction, SDXLInpaintAction, LAMARemoveAction
 
 actions = (
     FileEditAction,
@@ -89,6 +89,7 @@ actions = (
     ImageEditJudgeAction,
     AnyDoorEditAction,
     GroundingSAMAction,
+    GroundingDINOAction,
     InpaintRemoveAction,
     SDXLInpaintAction,
     LAMARemoveAction,
@@ -124,6 +125,7 @@ observations = (
     QwenAPIObservation,
     AnyDoorEditObservation,
     GroundingSAMObservation,
+    GroundingDINOObservation,
     InpaintRemoveObservation,
     SDXLInpaintObservation,
     LAMARemoveObservation,

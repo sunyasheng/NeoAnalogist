@@ -27,6 +27,7 @@ from core.agent.tools.experiment_manager import ExperimentManagerTool
 from core.agent.tools.got_edit import GoTEditTool
 from core.agent.tools.anydoor_edit import AnyDoorEditTool
 from core.agent.tools.grounding_sam import GroundingSAMTool
+from core.agent.tools.grounding_dino import GroundingDINOTool
 from core.agent.tools.inpaint_remove import InpaintRemoveTool
 from core.agent.tools.sdxl_inpaint import SDXLInpaintTool
 from core.agent.tools.lama_remove import LAMARemoveTool
@@ -36,7 +37,7 @@ from core.events.action import (Action, AgentFinishAction, AgentThinkAction,
                                 BrowseInteractiveAction, BrowseURLAction,
                                 CmdRunAction, FileEditAction, FileReadAction,
                                 MessageAction, TaskGraphBuildAction, RepoPlanAction, RepoCreateAction, RepoAnalyzerAction, RepoUpdateAction, RepoVerifyAction, RepoRunAction, PaperReproductionAnalyzerAction, RepoDebugAction, RepoEditAction, PDFQueryAction, IPythonRunCellAction, RepoJudgeAction, PaperRubricAction, ExperimentManagerAction)
-from core.events.action.image import QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction
+from core.events.action.image import QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, GroundingDINOAction
 from core.events.event import FileEditSource, FileReadSource, ToolCallMetadata
 
 
@@ -179,6 +180,20 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     text_prompt=arguments.get("text_prompt", ""),
                     return_type="image",
                     output_dir=None,
+                    output_path=arguments.get("output_path", None),
+                    thought=thought,
+                )
+                action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
+            # ================================================
+            # GroundingDINOTool
+            # ================================================
+            elif tool_call.function.name == GroundingDINOTool["function"]["name"]:
+                action = GroundingDINOAction(
+                    image_path=arguments.get("image_path", ""),
+                    text_prompt=arguments.get("text_prompt", ""),
+                    box_threshold=arguments.get("box_threshold", 0.3),
+                    text_threshold=arguments.get("text_threshold", 0.25),
+                    return_type=arguments.get("return_type", "json"),
                     output_path=arguments.get("output_path", None),
                     thought=thought,
                 )
