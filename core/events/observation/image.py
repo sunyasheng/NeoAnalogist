@@ -48,6 +48,8 @@ class GroundingSAMObservation(Observation):
     content: str = ""
     num_instances: int = 0
     mask_paths: List[str] = None
+    boxes: List[List[float]] = None  # Bounding boxes [[x1, y1, x2, y2], ...]
+    labels: List[str] = None  # Object labels
     success: bool = False
     error_message: str = ""
     observation: str = "GROUNDING_SAM"
@@ -57,6 +59,10 @@ class GroundingSAMObservation(Observation):
     def __post_init__(self):
         if self.mask_paths is None:
             self.mask_paths = []
+        if self.boxes is None:
+            self.boxes = []
+        if self.labels is None:
+            self.labels = []
 
 
 @dataclass

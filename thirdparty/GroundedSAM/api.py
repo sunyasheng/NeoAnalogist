@@ -99,6 +99,9 @@ def segment_with_boxes(sam_predictor, image, boxes, labels):
     sam_predictor.set_image(image)
     result_masks = []
     
+    print(f"DEBUG: segment_with_boxes called with {len(boxes)} boxes")
+    print(f"DEBUG: Image shape: {image.shape}")
+    
     for i, box in enumerate(boxes):
         # Convert box format if needed
         if isinstance(box, list):
@@ -106,22 +109,37 @@ def segment_with_boxes(sam_predictor, image, boxes, labels):
         elif hasattr(box, 'cpu'):  # PyTorch tensor
             box = box.cpu().numpy()
         
+        print(f"DEBUG: Processing box {i}: {box} (type: {type(box)})")
+        
         # Ensure box is in correct format [x1, y1, x2, y2]
         if len(box) == 4:
             # Convert to float32 numpy array
             box = box.astype(np.float32)
+            print(f"DEBUG: Box {i} after conversion: {box}")
+            
+            # Check if box is valid (not all zeros)
+            if np.all(box == 0):
+                print(f"WARNING: Box {i} is all zeros, creating empty mask")
+                result_masks.append(np.zeros(image.shape[:2], dtype=bool))
+                continue
+            
             masks, scores, logits = sam_predictor.predict(
                 box=box,
                 multimask_output=True
             )
+            print(f"DEBUG: Box {i} - got {len(masks)} masks, scores: {scores}")
+            
             # Select the best mask
             index = np.argmax(scores)
-            result_masks.append(masks[index])
+            best_mask = masks[index]
+            print(f"DEBUG: Box {i} - selected mask {index}, shape: {best_mask.shape}, unique values: {np.unique(best_mask)}")
+            result_masks.append(best_mask)
         else:
             print(f"Warning: Invalid box format for box {i}: {box}")
             # Create empty mask
             result_masks.append(np.zeros(image.shape[:2], dtype=bool))
     
+    print(f"DEBUG: Returning {len(result_masks)} masks")
     return np.array(result_masks)
 
 @app.on_event("startup")
@@ -487,13 +505,13 @@ async def grounded_sam_detect_and_segment(
             }
         
         # Convert boxes to proper format for SAM
+        # GroundingDINO returns normalized coordinates [0,1], convert to pixel coordinates
         size = image_pil.size
         H, W = size[1], size[0]
         boxes_for_sam = []
         for i in range(boxes_filt.size(0)):
+            # Convert from normalized [0,1] to pixel coordinates [x1, y1, x2, y2]
             box = boxes_filt[i] * torch.Tensor([W, H, W, H])
-            box[:2] -= box[2:] / 2
-            box[2:] += box[:2]
             boxes_for_sam.append(box.cpu().numpy())
         
         # Step 2: Segment objects with SAM

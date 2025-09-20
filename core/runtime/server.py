@@ -1317,6 +1317,8 @@ class ActionExecutor:
                     success=True,
                     num_instances=len(mask_paths),
                     mask_paths=mask_paths,
+                    boxes=boxes,
+                    labels=labels,
                     content=content
                 )
             finally:
