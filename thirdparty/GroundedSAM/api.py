@@ -1,0 +1,265 @@
+"""
+GroundedSAM API for object segmentation with bounding boxes and labels.
+
+This API accepts an image, bounding boxes, and object labels to perform segmentation.
+It uses GroundingDINO for detection and SAM for segmentation.
+"""
+
+import os
+import io
+import json
+import numpy as np
+import torch
+import torchvision
+import cv2
+from PIL import Image
+from typing import List, Dict, Any, Optional
+from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.responses import JSONResponse, StreamingResponse
+
+# GroundingDINO imports
+import groundingdino.datasets.transforms as T
+from groundingdino.models import build_model
+from groundingdino.util.slconfig import SLConfig
+from groundingdino.util.utils import clean_state_dict, get_phrases_from_posmap
+from groundingdino.util.vl_utils import create_positive_map_from_span
+
+# SAM imports
+from segment_anything import sam_model_registry, SamPredictor
+
+app = FastAPI(title="GroundedSAM API", description="Object segmentation with bounding boxes and labels", version="1.0.0")
+
+_HERE = os.path.abspath(os.path.dirname(__file__))
+_grounding_dino_model = None
+_sam_predictor = None
+_device = "cuda" if torch.cuda.is_available() else "cpu"
+
+def load_image(image_pil):
+    """Load and transform image for GroundingDINO."""
+    transform = T.Compose(
+        [
+            T.RandomResize([800], max_size=1333),
+            T.ToTensor(),
+            T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        ]
+    )
+    image, _ = transform(image_pil, None)
+    return image_pil, image
+
+def load_model(model_config_path, model_checkpoint_path, device):
+    """Load GroundingDINO model."""
+    args = SLConfig.fromfile(model_config_path)
+    args.device = device
+    model = build_model(args)
+    checkpoint = torch.load(model_checkpoint_path, map_location="cpu")
+    load_res = model.load_state_dict(clean_state_dict(checkpoint["model"]), strict=False)
+    print(load_res)
+    _ = model.eval()
+    return model
+
+def get_grounding_output(model, image, caption, box_threshold, text_threshold, device="cpu"):
+    """Get GroundingDINO output."""
+    caption = caption.lower()
+    caption = caption.strip()
+    if not caption.endswith("."):
+        caption = caption + "."
+    
+    model = model.to(device)
+    image = image.to(device)
+    
+    with torch.no_grad():
+        outputs = model(image[None], captions=[caption])
+    
+    logits = outputs["pred_logits"].cpu().sigmoid()[0]  # (nq, 256)
+    boxes = outputs["pred_boxes"].cpu()[0]  # (nq, 4)
+    
+    # filter output
+    logits_filt = logits.clone()
+    boxes_filt = boxes.clone()
+    filt_mask = logits_filt.max(dim=1)[0] > box_threshold
+    logits_filt = logits_filt[filt_mask]  # num_filt, 256
+    boxes_filt = boxes_filt[filt_mask]  # num_filt, 4
+    
+    # get phrase
+    tokenlizer = model.tokenizer
+    tokenized = tokenlizer(caption)
+    
+    # build pred
+    pred_phrases = []
+    scores = []
+    for logit, box in zip(logits_filt, boxes_filt):
+        pred_phrase = get_phrases_from_posmap(logit > text_threshold, tokenized, tokenlizer)
+        pred_phrases.append(pred_phrase + f"({str(logit.max().item())[:4]})")
+        scores.append(logit.max().item())
+    
+    return boxes_filt, torch.Tensor(scores), pred_phrases
+
+def segment_with_boxes(sam_predictor, image, boxes, labels):
+    """Segment objects using SAM with provided bounding boxes."""
+    sam_predictor.set_image(image)
+    result_masks = []
+    
+    for i, box in enumerate(boxes):
+        # Convert box format if needed
+        if isinstance(box, list):
+            box = np.array(box)
+        
+        # Ensure box is in correct format [x1, y1, x2, y2]
+        if len(box) == 4:
+            masks, scores, logits = sam_predictor.predict(
+                box=box,
+                multimask_output=True
+            )
+            # Select the best mask
+            index = np.argmax(scores)
+            result_masks.append(masks[index])
+        else:
+            print(f"Warning: Invalid box format for box {i}: {box}")
+            # Create empty mask
+            result_masks.append(np.zeros(image.shape[:2], dtype=bool))
+    
+    return np.array(result_masks)
+
+@app.on_event("startup")
+async def _warmup_models():
+    """Load models on startup."""
+    global _grounding_dino_model, _sam_predictor, _device
+    
+    # GroundingDINO paths
+    model_config_path = os.path.join(_HERE, "GroundingDINO", "groundingdino", "config", "GroundingDINO_SwinT_OGC.py")
+    model_checkpoint_path = os.path.join(_HERE, "..", "..", "pretrained", "GroundingSAM", "groundingdino_swint_ogc.pth")
+    
+    # SAM paths
+    sam_checkpoint_path = os.path.join(_HERE, "..", "..", "pretrained", "GroundingSAM", "sam_vit_h_4b8939.pth")
+    
+    if not os.path.exists(model_config_path):
+        print(f"Warning: GroundingDINO config not found at {model_config_path}")
+        return
+    if not os.path.exists(model_checkpoint_path):
+        print(f"Warning: GroundingDINO checkpoint not found at {model_checkpoint_path}")
+        return
+    if not os.path.exists(sam_checkpoint_path):
+        print(f"Warning: SAM checkpoint not found at {sam_checkpoint_path}")
+        return
+    
+    try:
+        # Load GroundingDINO
+        _grounding_dino_model = load_model(model_config_path, model_checkpoint_path, _device)
+        print(f"GroundingDINO model loaded successfully on {_device}")
+        
+        # Load SAM
+        sam = sam_model_registry["vit_h"](checkpoint=sam_checkpoint_path)
+        sam.to(device=_device)
+        _sam_predictor = SamPredictor(sam)
+        print(f"SAM model loaded successfully on {_device}")
+        
+    except Exception as e:
+        print(f"Failed to load models: {e}")
+        _grounding_dino_model = None
+        _sam_predictor = None
+
+@app.post("/grounded-sam/segment")
+async def grounded_sam_segment(
+    image: UploadFile = File(...),
+    boxes: str = Form(...),  # JSON string of bounding boxes
+    labels: str = Form(...),  # JSON string of labels
+    return_type: str = Form("json"),  # json | image
+    output_dir: Optional[str] = Form(None),
+):
+    """Segment objects using provided bounding boxes and labels."""
+    global _grounding_dino_model, _sam_predictor, _device
+    
+    if _grounding_dino_model is None or _sam_predictor is None:
+        return JSONResponse(status_code=503, content={"success": False, "error": "Models not loaded"})
+    
+    try:
+        # Parse inputs
+        boxes_data = json.loads(boxes)
+        labels_data = json.loads(labels)
+        
+        if len(boxes_data) != len(labels_data):
+            return JSONResponse(status_code=400, content={"success": False, "error": "Number of boxes and labels must match"})
+        
+        # Load image
+        image_data = await image.read()
+        image_pil = Image.open(io.BytesIO(image_data)).convert("RGB")
+        image_cv = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)
+        image_rgb = cv2.cvtColor(image_cv, cv2.COLOR_BGR2RGB)
+        
+        # Convert boxes to numpy array
+        boxes_array = np.array(boxes_data)
+        
+        # Perform segmentation
+        masks = segment_with_boxes(_sam_predictor, image_rgb, boxes_array, labels_data)
+        
+        if return_type == "json":
+            # Return segmentation results as JSON
+            results = []
+            for i, (box, label, mask) in enumerate(zip(boxes_data, labels_data, masks)):
+                # Convert mask to list of coordinates or save as file
+                mask_path = None
+                if output_dir:
+                    mask_filename = f"mask_{i}.png"
+                    mask_path = os.path.join(output_dir, mask_filename)
+                    os.makedirs(output_dir, exist_ok=True)
+                    mask_image = (mask * 255).astype(np.uint8)
+                    cv2.imwrite(mask_path, mask_image)
+                
+                results.append({
+                    "box": box,
+                    "label": label,
+                    "mask_path": mask_path,
+                    "mask_area": int(np.sum(mask))
+                })
+            
+            return {
+                "success": True,
+                "num_instances": len(results),
+                "results": results
+            }
+        
+        elif return_type == "image":
+            # Return annotated image
+            annotated_image = image_cv.copy()
+            
+            # Draw masks
+            for i, (mask, label) in enumerate(zip(masks, labels_data)):
+                # Create colored mask
+                color = np.random.randint(0, 255, 3).tolist()
+                colored_mask = np.zeros_like(image_cv)
+                colored_mask[mask] = color
+                
+                # Blend with original image
+                annotated_image = cv2.addWeighted(annotated_image, 0.7, colored_mask, 0.3, 0)
+                
+                # Draw bounding box
+                box = boxes_data[i]
+                cv2.rectangle(annotated_image, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), color, 2)
+                
+                # Draw label
+                cv2.putText(annotated_image, label, (int(box[0]), int(box[1]) - 10), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+            
+            # Convert to bytes
+            _, buffer = cv2.imencode('.png', annotated_image)
+            img_bytes = io.BytesIO(buffer).getvalue()
+            
+            return StreamingResponse(io.BytesIO(img_bytes), media_type="image/png")
+        
+        else:
+            return JSONResponse(status_code=400, content={"success": False, "error": "Invalid return_type"})
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+
+@app.get("/alive")
+async def alive():
+    """Health check endpoint."""
+    return {"status": "alive", "models_loaded": _grounding_dino_model is not None and _sam_predictor is not None}
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("GROUNDED_SAM_PORT", "8503"))
+    uvicorn.run(app, host="0.0.0.0", port=port)
