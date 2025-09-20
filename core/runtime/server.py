@@ -1212,6 +1212,8 @@ class ActionExecutor:
         try:
             import requests
             import base64 as _b64
+            import json
+            
             base_url = os.environ.get("GROUNDING_SAM_BASE_URL", "http://10.64.74.69:8503")
             url = f"{base_url.rstrip('/')}/grounded-sam/detect-and-segment"
 
@@ -1221,57 +1223,36 @@ class ActionExecutor:
             files = {
                 "image": open(action.image_path, "rb"),
             }
-            data = {
+            # Step 1: Detect objects first
+            detect_data = {
                 "text_prompt": action.text_prompt,
                 "box_threshold": 0.3,
                 "text_threshold": 0.25,
-                "return_type": "image",  # Request image stream to get masks
+                "return_type": "json",
             }
-            # Use image return type to get mask visualization without file system dependency
+            
+            detect_url = f"{base_url.rstrip('/')}/grounded-sam/detect"
 
             try:
-                # Request image stream response
-                resp = requests.post(url, files=files, data=data, timeout=600, stream=True)
-                resp.raise_for_status()
+                # Step 1: Detect objects
+                files_copy = {"image": open(action.image_path, "rb")}
+                detect_resp = requests.post(detect_url, files=files_copy, data=detect_data, timeout=600)
+                detect_resp.raise_for_status()
+                files_copy["image"].close()
                 
-                # Read image content
-                img_bytes = resp.content
-                content_type = resp.headers.get("Content-Type", "image/png")
+                detect_result = detect_resp.json()
                 
-                # Save the mask visualization image if output path provided
-                saved_path = ""
-                if action.output_path:
-                    try:
-                        with open(action.output_path, "wb") as f:
-                            f.write(img_bytes)
-                        saved_path = action.output_path
-                    except Exception as save_err:
-                        logger.warning(f"Failed to save mask image: {save_err}")
-                elif action.output_dir:
-                    try:
-                        os.makedirs(action.output_dir, exist_ok=True)
-                        out_path = os.path.join(action.output_dir, "mask_visualization.png")
-                        with open(out_path, "wb") as f:
-                            f.write(img_bytes)
-                        saved_path = out_path
-                    except Exception as save_err:
-                        logger.warning(f"Failed to save mask image to directory: {save_err}")
+                if not detect_result.get("success", False):
+                    return GroundingSAMObservation(
+                        success=False,
+                        error_message=detect_result.get("error", "Detection failed"),
+                        num_instances=0,
+                        mask_paths=[],
+                        content="GroundingSAM detection failed"
+                    )
                 
-                # Check if the image is empty (all black pixels)
-                is_empty_mask = False
-                if img_bytes:
-                    try:
-                        from PIL import Image
-                        import io
-                        import numpy as np
-                        img = Image.open(io.BytesIO(img_bytes))
-                        img_array = np.array(img)
-                        # Check if all pixels are black (0)
-                        is_empty_mask = np.all(img_array == 0)
-                    except Exception:
-                        pass
-                
-                if is_empty_mask:
+                detections = detect_result.get("detections", [])
+                if not detections:
                     return GroundingSAMObservation(
                         success=False,
                         error_message="No objects detected",
@@ -1280,15 +1261,62 @@ class ActionExecutor:
                         content="No objects found matching the text prompt"
                     )
                 
+                # Step 2: Get masks for each detected object
+                mask_paths = []
+                boxes = [d["box"] for d in detections]
+                labels = [d["label"] for d in detections]
+                
+                # Prepare segment-masks request
+                segment_data = {
+                    "boxes": json.dumps(boxes),
+                    "labels": json.dumps(labels),
+                }
+                
+                # Get masks one by one
+                for i in range(len(detections)):
+                    segment_data["mask_index"] = i
+                    
+                    # Reopen image file for each request
+                    files_copy = {"image": open(action.image_path, "rb")}
+                    segment_resp = requests.post(
+                        f"{base_url.rstrip('/')}/grounded-sam/segment-masks",
+                        files=files_copy,
+                        data=segment_data,
+                        timeout=600
+                    )
+                    files_copy["image"].close()
+                    segment_resp.raise_for_status()
+                    
+                    # Save mask image
+                    mask_bytes = segment_resp.content
+                    if action.output_dir:
+                        os.makedirs(action.output_dir, exist_ok=True)
+                        mask_path = os.path.join(action.output_dir, f"mask_{i}_{labels[i].replace(' ', '_')}.png")
+                    elif action.output_path:
+                        # If single output_path, save as mask_0.png
+                        base_path = action.output_path.replace('.png', f'_mask_{i}.png')
+                        mask_path = base_path
+                    else:
+                        # Use temp file
+                        import tempfile
+                        mask_path = tempfile.mktemp(suffix=f"_mask_{i}.png")
+                    
+                    try:
+                        with open(mask_path, "wb") as f:
+                            f.write(mask_bytes)
+                        mask_paths.append(mask_path)
+                    except Exception as save_err:
+                        logger.warning(f"Failed to save mask {i}: {save_err}")
+                
                 # Create content summary
-                content = f"GroundingSAM segmentation completed with mask visualization"
-                if saved_path:
-                    content += f". Mask image saved to: {saved_path}"
+                content = f"GroundingSAM segmentation completed: {len(detections)} objects detected, {len(mask_paths)} masks generated"
+                if detections:
+                    content += f". Detected: {', '.join([d.get('label', 'unknown') for d in detections])}"
                 
                 return GroundingSAMObservation(
                     success=True,
-                    num_instances=1,  # Single visualization image
-                    mask_paths=[saved_path] if saved_path else [],
+                    num_instances=len(mask_paths),
+                    mask_paths=mask_paths,
                     content=content
                 )
             finally:
