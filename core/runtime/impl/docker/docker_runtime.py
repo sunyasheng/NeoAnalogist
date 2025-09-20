@@ -789,6 +789,11 @@ def main():
     parser.add_argument("--image-edit-judge-original-path", type=str, help="Original image path for edit judge evaluation", metavar='ORIGINAL_PATH')
     parser.add_argument("--image-edit-judge-edited-path", type=str, help="Edited image path for edit judge evaluation", metavar='EDITED_PATH')
     parser.add_argument("--image-edit-judge-instruction", type=str, help="Edit instruction that was given (e.g., 'Replace the cat with a fox')", metavar='INSTRUCTION')
+    # Image Understanding (comprehensive image analysis)
+    parser.add_argument("--image-understanding-image-path", type=str, help="Container path to image for understanding analysis", metavar='IMG_PATH')
+    parser.add_argument("--image-understanding-boxes", type=str, help="JSON string of bounding boxes [[x1,y1,x2,y2],...]", metavar='BOXES')
+    parser.add_argument("--image-understanding-labels", type=str, help="JSON string of object labels", metavar='LABELS')
+    parser.add_argument("--image-understanding-masks", type=str, help="JSON string of mask image paths", metavar='MASKS')
     # AnyDoor edit (reference object transfer)
     parser.add_argument("--anydoor-ref-image-path", type=str, help="Container path to reference image (PNG with alpha preferred)")
     parser.add_argument("--anydoor-ref-mask-path", type=str, help="Container path to reference mask (optional; required if ref has no alpha)")
@@ -1674,6 +1679,90 @@ def main():
                 print(f"  Reasoning: {result.reasoning}")
             else:
                 print(f"❌ Image Edit Judge failed: {result.error_message}")
+        elif args.image_understanding_image_path:
+            # Image Understanding analysis
+            from core.events.action.image import ImageUnderstandingAction
+            import json
+            
+            print(f"\n🔍 Image Understanding Analysis")
+            print(f"Image Path: {args.image_understanding_image_path}")
+            
+            # Parse JSON inputs
+            boxes = []
+            labels = []
+            masks = []
+            
+            if args.image_understanding_boxes:
+                try:
+                    boxes = json.loads(args.image_understanding_boxes)
+                except json.JSONDecodeError:
+                    print("Error: Invalid JSON format for --image-understanding-boxes")
+                    return
+            
+            if args.image_understanding_labels:
+                try:
+                    labels = json.loads(args.image_understanding_labels)
+                except json.JSONDecodeError:
+                    print("Error: Invalid JSON format for --image-understanding-labels")
+                    return
+            
+            if args.image_understanding_masks:
+                try:
+                    masks = json.loads(args.image_understanding_masks)
+                except json.JSONDecodeError:
+                    print("Error: Invalid JSON format for --image-understanding-masks")
+                    return
+            
+            if boxes:
+                print(f"Boxes: {len(boxes)} detected objects")
+            if labels:
+                print(f"Labels: {labels}")
+            if masks:
+                print(f"Masks: {len(masks)} mask files")
+            
+            # Map container path
+            image_path = args.image_understanding_image_path
+            if image_path.startswith('/app_sci/'):
+                pass  # Keep as is
+            elif not image_path.startswith('/'):
+                image_path = os.path.join('/app_sci', image_path)
+            
+            action = ImageUnderstandingAction(
+                image_path=image_path,
+                boxes=boxes,
+                labels=labels,
+                masks=masks,
+            )
+            result = runtime.image_understanding(action)
+            
+            if result.success:
+                print(f"✅ Image Understanding completed successfully!")
+                print(f"📊 Results:")
+                print(f"  Description: {result.image_description}")
+                print(f"  Scene Context: {result.scene_context}")
+                print(f"  Objects: {len(result.object_analysis)}")
+                print(f"  Spatial Relationships: {len(result.spatial_relationships)}")
+                
+                if result.object_analysis:
+                    print(f"\n🎯 Object Analysis:")
+                    for i, obj in enumerate(result.object_analysis):
+                        print(f"  {i+1}. {obj.get('label', 'Unknown')}: {obj.get('description', 'No description')}")
+                
+                if result.spatial_relationships:
+                    print(f"\n📍 Spatial Relationships:")
+                    for i, rel in enumerate(result.spatial_relationships):
+                        print(f"  {i+1}. {rel}")
+                
+                if result.visual_elements:
+                    print(f"\n🎨 Visual Elements:")
+                    for key, value in result.visual_elements.items():
+                        if key != "visualization_path":
+                            print(f"  {key}: {value}")
+                
+                if result.visual_elements.get("visualization_path"):
+                    print(f"\n🖼️  Visualization saved: {result.visual_elements['visualization_path']}")
+            else:
+                print(f"❌ Image Understanding failed: {result.error_message}")
         elif args.exp_manager_cmd or args.exp_manager_mode:
             # Experiment Manager entry (shell)
             print("\n🧪 Experiment Manager")
@@ -1943,6 +2032,8 @@ def main():
             print("  --qwen-api-image-path <path> --qwen-api-prompt <prompt> Analyze image using Qwen2.5-VL API")
             print("    Optional flags: --qwen-api-mode <generate|chat>, --qwen-api-max-tokens <tokens>, --qwen-api-temperature <temp>, --qwen-api-top-p <top_p>")
             print("  --image-edit-judge-original-path <path> --image-edit-judge-edited-path <path> --image-edit-judge-instruction <instruction> Evaluate image editing quality using GPT-4o vision")
+            print("  --image-understanding-image-path <path> Comprehensive image understanding analysis using GPT-4o vision")
+            print("    Optional: --image-understanding-boxes <json>, --image-understanding-labels <json>, --image-understanding-masks <json>")
             print("  --exp-manager-cmd <bash_cmd> Wrap bash command into MLflow experiment script (e.g., python xxx.py)")
             print("  --exp-manager-mode <wrap|query> Experiment manager mode: wrap (create MLflow script) or query (list experiments) (default: query)")
             print("    Optional: --exp-manager-exp-name <exp_name> (experiment name for the wrapper)")

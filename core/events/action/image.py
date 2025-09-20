@@ -241,3 +241,31 @@ class GroundingDINOAction(Action):
     def message(self) -> str:
         return f"Detect objects in image: {self.image_path} (prompt: {self.text_prompt})"
 
+
+@dataclass
+class ImageUnderstandingAction(Action):
+    """Comprehensive image understanding analysis."""
+
+    image_path: str = ""
+    boxes: List[List[float]] = None  # Bounding boxes [[x1, y1, x2, y2], ...]
+    labels: List[str] = None  # Object labels
+    masks: List[str] = None  # Paths to mask images
+    timeout: int = 600
+    thought: str = ""
+
+    # action routing key used by server/client
+    action: str = "image_understanding"
+    runnable: ClassVar[bool] = True
+
+    def __post_init__(self):
+        if self.boxes is None:
+            self.boxes = []
+        if self.labels is None:
+            self.labels = []
+        if self.masks is None:
+            self.masks = []
+
+    @property
+    def message(self) -> str:
+        return f"Analyze image: {self.image_path} (objects: {len(self.labels)}, masks: {len(self.masks)})"
+

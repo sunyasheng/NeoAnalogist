@@ -124,3 +124,26 @@ class GroundingDINOObservation(Observation):
             self.detections = []
 
 
+@dataclass
+class ImageUnderstandingObservation(Observation):
+    """Observation for image understanding analysis results."""
+    
+    content: str = ""
+    image_description: str = ""
+    object_analysis: list = None  # List of object analysis dicts
+    spatial_relationships: list = None  # List of spatial relationship strings
+    scene_context: str = ""
+    visual_elements: dict = None  # Dict of visual elements
+    success: bool = True
+    error_message: str = ""
+    observation: str = "IMAGE_UNDERSTANDING"
+    
+    def __post_init__(self):
+        if self.object_analysis is None:
+            self.object_analysis = []
+        if self.spatial_relationships is None:
+            self.spatial_relationships = []
+        if self.visual_elements is None:
+            self.visual_elements = {}
+
+

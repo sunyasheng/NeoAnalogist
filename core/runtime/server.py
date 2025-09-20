@@ -80,8 +80,8 @@ from core.runtime.tasks.repo_edit import RepoEditTask
 from core.runtime.tasks.pdf_query_task import PDFQueryTool
 from core.events.observation.repo import RepoEditObservation
 from core.runtime.plugins.jupyter import JupyterPlugin
-from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, GroundingDINOAction, InpaintRemoveAction, SDXLInpaintAction, LAMARemoveAction
-from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation, GroundingSAMObservation, GroundingDINOObservation, InpaintRemoveObservation, SDXLInpaintObservation, LAMARemoveObservation
+from core.events.action.image import ImageEntityExtractAction, GoTEditAction, QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, GroundingDINOAction, InpaintRemoveAction, SDXLInpaintAction, LAMARemoveAction, ImageUnderstandingAction
+from core.events.observation.image import ImageEntityExtractObservation, ImageEditJudgeObservation, GroundingSAMObservation, GroundingDINOObservation, InpaintRemoveObservation, SDXLInpaintObservation, LAMARemoveObservation, ImageUnderstandingObservation
 from core.events.observation.repo import GoTEditObservation, QwenAPIObservation, AnyDoorEditObservation
 from core.runtime.tasks.image_entity_extract import ImageEntityExtractTask
 from core.runtime.tasks.got_edit import GoTEditClient
@@ -1590,6 +1590,48 @@ class ActionExecutor:
                 content=f"❌ Image edit judge failed: {str(e)}",
                 status="error",
                 error_message=f"Failed to judge image edit quality: {str(e)}"
+            )
+
+    async def image_understanding(self, action: ImageUnderstandingAction) -> ImageUnderstandingObservation:
+        """Comprehensive image understanding analysis using GPT-4o vision.
+        
+        Analyzes images with optional masks, bounding boxes, and labels to provide
+        detailed understanding including object descriptions, spatial relationships,
+        scene context, and visual elements.
+        """
+        try:
+            from core.runtime.tasks.image_understanding import ImageUnderstandingTask
+            
+            # Create and run the image understanding task
+            task = ImageUnderstandingTask(self)
+            result = task.run(action)
+            
+            # Create content summary
+            content = f"Image Understanding Analysis:\n"
+            content += f"Description: {result.image_description}\n"
+            content += f"Scene Context: {result.scene_context}\n"
+            content += f"Objects: {len(result.object_analysis)}\n"
+            content += f"Spatial Relationships: {len(result.spatial_relationships)}\n"
+            
+            if result.visual_elements.get("visualization_path"):
+                content += f"Visualization: {result.visual_elements['visualization_path']}\n"
+            
+            return ImageUnderstandingObservation(
+                content=content,
+                image_description=result.image_description,
+                object_analysis=result.object_analysis,
+                spatial_relationships=result.spatial_relationships,
+                scene_context=result.scene_context,
+                visual_elements=result.visual_elements,
+                success=result.success,
+                error_message=result.error_message
+            )
+        except Exception as e:
+            logger.error(f"Error in image_understanding: {str(e)}")
+            return ImageUnderstandingObservation(
+                content=f"❌ Image understanding failed: {str(e)}",
+                success=False,
+                error_message=f"Failed to analyze image: {str(e)}"
             )
 
     async def repo_judge(self, action: RepoJudgeAction) -> RepoJudgeObservation:

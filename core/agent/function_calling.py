@@ -33,11 +33,12 @@ from core.agent.tools.sdxl_inpaint import SDXLInpaintTool
 from core.agent.tools.lama_remove import LAMARemoveTool
 from core.agent.tools.qwen_api import QwenAPITool
 from core.agent.tools.image_edit_judge import ImageEditJudgeTool
+from core.agent.tools.image_understanding import ImageUnderstandingTool
 from core.events.action import (Action, AgentFinishAction, AgentThinkAction,
                                 BrowseInteractiveAction, BrowseURLAction,
                                 CmdRunAction, FileEditAction, FileReadAction,
                                 MessageAction, TaskGraphBuildAction, RepoPlanAction, RepoCreateAction, RepoAnalyzerAction, RepoUpdateAction, RepoVerifyAction, RepoRunAction, PaperReproductionAnalyzerAction, RepoDebugAction, RepoEditAction, PDFQueryAction, IPythonRunCellAction, RepoJudgeAction, PaperRubricAction, ExperimentManagerAction)
-from core.events.action.image import QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, GroundingDINOAction
+from core.events.action.image import QwenAPIAction, ImageEditJudgeAction, AnyDoorEditAction, GroundingSAMAction, GroundingDINOAction, ImageUnderstandingAction
 from core.events.event import FileEditSource, FileReadSource, ToolCallMetadata
 
 
@@ -168,6 +169,18 @@ def response_to_actions(response: ModelResponse) -> list[Action]:
                     original_path=arguments.get("original_path", ""),
                     edited_path=arguments.get("edited_path", ""),
                     instruction=arguments.get("instruction", ""),
+                    thought=thought,
+                )
+                action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
+            # ================================================
+            # ImageUnderstandingTool
+            # ================================================
+            elif tool_call.function.name == ImageUnderstandingTool["function"]["name"]:
+                action = ImageUnderstandingAction(
+                    image_path=arguments.get("image_path", ""),
+                    boxes=arguments.get("boxes", []),
+                    labels=arguments.get("labels", []),
+                    masks=arguments.get("masks", []),
                     thought=thought,
                 )
                 action.set_hard_timeout(arguments.get("timeout", 600), blocking=False)
@@ -621,6 +634,7 @@ def get_tools(
         SDXLInpaintTool,
         LAMARemoveTool,
         ImageEditJudgeTool,
+        ImageUnderstandingTool,
         # IPythonTool,
         
         # QwenAPITool, # Not accurate
