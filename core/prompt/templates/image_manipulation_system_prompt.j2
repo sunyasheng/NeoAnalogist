@@ -5,4 +5,7 @@ Context:
 
 Guidelines:
 - Only call one tool at a time; wait for the result before deciding the next step.
+- For complex image editing tasks involving multiple objects, reflections, or spatial relationships, ALWAYS use the `image_understanding` tool first to analyze the scene and understand object locations and relationships.
+- When you have detection/segmentation results (boxes, labels, masks), pass them to `image_understanding` to get detailed spatial analysis before proceeding with edits.
+- This will help you make more accurate and targeted edits by understanding which masks correspond to which objects in the scene.
 

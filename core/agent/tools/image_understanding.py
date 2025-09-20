@@ -12,10 +12,11 @@ ImageUnderstandingTool: ChatCompletionToolParam = {
     "function": {
         "name": "image_understanding",
         "description": (
-            "Comprehensive image understanding and analysis. "
+            "CRITICAL: Use this tool to understand spatial relationships and object semantics in images. "
+            "Essential for complex editing tasks involving multiple objects, reflections, or mirrors. "
             "Analyzes images with optional masks, bounding boxes, and labels to provide detailed understanding including "
-            "object descriptions, spatial relationships, scene context, and visual elements. "
-            "Can work with just an image or with additional detection/segmentation data."
+            "object descriptions, spatial relationships (e.g., which objects are in mirrors vs. physical space), scene context, and visual elements. "
+            "ALWAYS use this tool when you have detection results (boxes/labels/masks) to understand which mask corresponds to which object before editing."
         ),
         "parameters": {
             "type": "object",
