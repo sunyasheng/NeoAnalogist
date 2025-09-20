@@ -16,7 +16,8 @@ ImageUnderstandingTool: ChatCompletionToolParam = {
             "Essential for complex editing tasks involving multiple objects, reflections, or mirrors. "
             "Analyzes images with optional masks, bounding boxes, and labels to provide detailed understanding including "
             "object descriptions, spatial relationships (e.g., which objects are in mirrors vs. physical space), scene context, and visual elements. "
-            "ALWAYS use this tool when you have detection results (boxes/labels/masks) to understand which mask corresponds to which object before editing."
+            "MANDATORY WORKFLOW: After running grounding_sam_segment, you MUST call this tool with the returned boxes, labels, and masks to understand which mask corresponds to which object before editing. "
+            "This prevents editing the wrong target and ensures accurate spatial understanding."
         ),
         "parameters": {
             "type": "object",
