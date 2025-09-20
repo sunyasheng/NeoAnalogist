@@ -1221,47 +1221,57 @@ class ActionExecutor:
             files = {
                 "image": open(action.image_path, "rb"),
             }
-            # Determine output directory for masks
-            output_dir = None
-            if action.output_dir:
-                output_dir = action.output_dir
-            elif action.output_path:
-                # If output_path is provided, use its directory
-                output_dir = os.path.dirname(action.output_path)
-            
             data = {
                 "text_prompt": action.text_prompt,
                 "box_threshold": 0.3,
                 "text_threshold": 0.25,
-                "return_type": "json",  # Request JSON to get mask paths
+                "return_type": "image",  # Request image stream to get masks
             }
-            
-            if output_dir:
-                data["output_dir"] = output_dir
+            # Use image return type to get mask visualization without file system dependency
 
             try:
-                # Request JSON response
-                resp = requests.post(url, files=files, data=data, timeout=600)
+                # Request image stream response
+                resp = requests.post(url, files=files, data=data, timeout=600, stream=True)
                 resp.raise_for_status()
                 
-                # Parse JSON response
-                result = resp.json()
+                # Read image content
+                img_bytes = resp.content
+                content_type = resp.headers.get("Content-Type", "image/png")
                 
-                if not result.get("success", False):
-                    return GroundingSAMObservation(
-                        success=False,
-                        error_message=result.get("error", "Unknown error"),
-                        num_instances=0,
-                        mask_paths=[],
-                        content="GroundingSAM segmentation failed"
-                    )
+                # Save the mask visualization image if output path provided
+                saved_path = ""
+                if action.output_path:
+                    try:
+                        with open(action.output_path, "wb") as f:
+                            f.write(img_bytes)
+                        saved_path = action.output_path
+                    except Exception as save_err:
+                        logger.warning(f"Failed to save mask image: {save_err}")
+                elif action.output_dir:
+                    try:
+                        os.makedirs(action.output_dir, exist_ok=True)
+                        out_path = os.path.join(action.output_dir, "mask_visualization.png")
+                        with open(out_path, "wb") as f:
+                            f.write(img_bytes)
+                        saved_path = out_path
+                    except Exception as save_err:
+                        logger.warning(f"Failed to save mask image to directory: {save_err}")
                 
-                num_detections = result.get("num_detections", 0)
-                num_masks = result.get("num_masks", 0)
-                mask_paths = result.get("mask_paths", [])
-                detections = result.get("detections", [])
+                # Check if the image is empty (all black pixels)
+                is_empty_mask = False
+                if img_bytes:
+                    try:
+                        from PIL import Image
+                        import io
+                        import numpy as np
+                        img = Image.open(io.BytesIO(img_bytes))
+                        img_array = np.array(img)
+                        # Check if all pixels are black (0)
+                        is_empty_mask = np.all(img_array == 0)
+                    except Exception:
+                        pass
                 
-                if num_detections == 0:
+                if is_empty_mask:
                     return GroundingSAMObservation(
                         success=False,
                         error_message="No objects detected",
@@ -1271,14 +1281,14 @@ class ActionExecutor:
                     )
                 
                 # Create content summary
-                content = f"GroundingSAM segmentation completed: {num_detections} objects detected, {num_masks} masks generated"
-                if detections:
-                    content += f". Detected: {', '.join([d.get('label', 'unknown') for d in detections])}"
+                content = f"GroundingSAM segmentation completed with mask visualization"
+                if saved_path:
+                    content += f". Mask image saved to: {saved_path}"
                 
                 return GroundingSAMObservation(
                     success=True,
-                    num_instances=num_masks,
-                    mask_paths=mask_paths,
+                    num_instances=1,  # Single visualization image
+                    mask_paths=[saved_path] if saved_path else [],
                     content=content
                 )
             finally:
