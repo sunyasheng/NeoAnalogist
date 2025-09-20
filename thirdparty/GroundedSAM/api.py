@@ -544,22 +544,31 @@ async def grounded_sam_detect_and_segment(
             }
         
         # Convert boxes to proper format for SAM
-        # GroundingDINO returns normalized coordinates [0,1], convert to pixel coordinates
+        # GroundingDINO returns normalized coordinates [cx, cy, w, h], convert to pixel coordinates [x1, y1, x2, y2]
         size = image_pil.size
         H, W = size[1], size[0]
         print(f"DEBUG: Image size: W={W}, H={H}")
         boxes_for_sam = []
         for i in range(boxes_filt.size(0)):
-            # Convert from normalized [0,1] to pixel coordinates [x1, y1, x2, y2]
-            box = boxes_filt[i] * torch.Tensor([W, H, W, H])
-            box_np = box.cpu().numpy()
-            print(f"DEBUG: Box {i} converted to pixels: {box_np}")
+            # GroundingDINO format: [cx, cy, w, h] (normalized 0-1)
+            # Convert to pixel coordinates first
+            cx, cy, w, h = boxes_filt[i] * torch.Tensor([W, H, W, H])
+            cx, cy, w, h = cx.item(), cy.item(), w.item(), h.item()
+            
+            # Convert from [cx, cy, w, h] to [x1, y1, x2, y2]
+            x1 = cx - w / 2
+            y1 = cy - h / 2
+            x2 = cx + w / 2
+            y2 = cy + h / 2
+            
             # Ensure coordinates are within image bounds
-            box_np[0] = max(0, min(W-1, box_np[0]))  # x1
-            box_np[1] = max(0, min(H-1, box_np[1]))  # y1
-            box_np[2] = max(0, min(W-1, box_np[2]))  # x2
-            box_np[3] = max(0, min(H-1, box_np[3]))  # y2
-            print(f"DEBUG: Box {i} after bounds check: {box_np}")
+            x1 = max(0, min(W-1, x1))
+            y1 = max(0, min(H-1, y1))
+            x2 = max(0, min(W-1, x2))
+            y2 = max(0, min(H-1, y2))
+            
+            box_np = np.array([x1, y1, x2, y2], dtype=np.float32)
+            print(f"DEBUG: Box {i} converted from [cx={cx:.1f}, cy={cy:.1f}, w={w:.1f}, h={h:.1f}] to [x1={x1:.1f}, y1={y1:.1f}, x2={x2:.1f}, y2={y2:.1f}]")
             boxes_for_sam.append(box_np)
         
         # Step 2: Segment objects with SAM
