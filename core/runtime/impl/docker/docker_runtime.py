@@ -1060,6 +1060,16 @@ def main():
             })
         elif args.grounding_dino_image_path or args.grounding_dino_text_prompt:
             # GroundingDINO detection
+            # Prepare container path mapping
+            def to_container_path(p: str) -> str:
+                if not p:
+                    return p
+                if p.startswith('/app_sci/'):
+                    return p
+                if not p.startswith('/'):
+                    return os.path.join('/app_sci', p)
+                return p
+
             img_path = to_container_path(args.grounding_dino_image_path or "")
             if not img_path or not args.grounding_dino_text_prompt:
                 print("Error: --grounding-dino-image-path and --grounding-dino-text-prompt are required")
