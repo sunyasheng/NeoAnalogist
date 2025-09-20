@@ -323,8 +323,15 @@ async def grounded_sam_segment_masks(
     
     try:
         # Parse inputs
+        print(f"DEBUG: segment-masks received boxes string: {boxes}")
+        print(f"DEBUG: segment-masks received labels string: {labels}")
+        print(f"DEBUG: segment-masks received mask_index: {mask_index}")
+        
         boxes_data = json.loads(boxes)
         labels_data = json.loads(labels)
+        
+        print(f"DEBUG: segment-masks parsed boxes_data: {boxes_data}")
+        print(f"DEBUG: segment-masks parsed labels_data: {labels_data}")
         
         if len(boxes_data) != len(labels_data):
             return JSONResponse(status_code=400, content={"success": False, "error": "Number of boxes and labels must match"})
@@ -340,6 +347,7 @@ async def grounded_sam_segment_masks(
         
         # Convert boxes to numpy array
         boxes_array = np.array(boxes_data)
+        print(f"DEBUG: segment-masks boxes_array: {boxes_array}")
         
         # Perform segmentation
         masks = segment_with_boxes(_sam_predictor, image_rgb, boxes_array, labels_data)
