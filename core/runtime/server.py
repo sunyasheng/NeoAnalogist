@@ -1293,7 +1293,7 @@ class ActionExecutor:
         """Call GroundingDINO API for object detection."""
         try:
             import requests
-            base_url = os.environ.get("GROUNDING_DINO_BASE_URL", "http://localhost:8502")
+            base_url = os.environ.get("GROUNDING_DINO_BASE_URL", "http://10.64.74.69:8502")
             url = f"{base_url.rstrip('/')}/grounding-dino/detect"
 
             if not action.image_path or not action.text_prompt:
