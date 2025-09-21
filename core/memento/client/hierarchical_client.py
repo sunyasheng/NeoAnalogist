@@ -348,7 +348,23 @@ When executing a task:
                     tools=None,
                     tool_choice=None
                 )
+                
+                # Debug: Log the full response
+                self.logger.info(f"Full LLM response: {meta_reply}")
+                
+                # Extract content from response
                 meta_content = meta_reply.get("content", "")
+                if not meta_content and "choices" in meta_reply:
+                    # Try to extract from choices
+                    if len(meta_reply["choices"]) > 0:
+                        choice = meta_reply["choices"][0]
+                        if "message" in choice:
+                            meta_content = choice["message"].get("content", "")
+                        else:
+                            meta_content = choice.get("text", "")
+                
+                self.logger.info(f"Extracted content length: {len(meta_content)}")
+                self.logger.info(f"Extracted content preview: {meta_content[:100]}")
                 
                 # Record meta cycle
                 meta_trace.append(MetaCycle(
