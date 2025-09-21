@@ -115,14 +115,21 @@ def main(config, working_dir):
     
     # Initialize Memento Planner with case bank
     logger.info("Initializing Memento Planner with case bank...")
+    
+    # Prepare Memento-specific config
+    memento_config = {
+        "max_cycles": config.get("max_cycles", 3),
+        "max_steps_per_task": config.get("max_steps_per_task", 5),
+        "timeout_per_task": config.get("timeout_per_task", 60),
+        "memory_enabled": not config.get("disable_memory", False),
+        "memory_path": config.get("memory_path", "core/memento/memory/cases.jsonl")
+    }
+    
     planner = MementoPlanner(
+        config=memento_config,
         scientist_agent=scientist_agent,
         working_dir=working_dir,
-        memory_enabled=True,  # Enable case bank
-        memory_path="core/memento/memory/cases.jsonl",  # Path to case bank
-        max_cycles=config.get("max_cycles", 3),  # Maximum planning cycles
-        max_steps_per_task=config.get("max_steps_per_task", 5),  # Max steps per task
-        timeout_per_task=config.get("timeout_per_task", 60)  # Timeout per task
+        memory_path=memento_config["memory_path"]
     )
     
     logger.info("Memento Planner initialized successfully")
