@@ -354,6 +354,9 @@ When executing a task:
                 
                 # Extract content from response
                 meta_content = meta_reply.get("content", "")
+                if not meta_content:
+                    # Try to extract from text field
+                    meta_content = meta_reply.get("text", "")
                 if not meta_content and "choices" in meta_reply:
                     # Try to extract from choices
                     if len(meta_reply["choices"]) > 0:
