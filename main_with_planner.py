@@ -48,11 +48,11 @@ def run_agent_with_planner(
     
     # Save trajectory (convert shared_history to trajectory format)
     trajectory = []
-    for entry in result.get("shared_history", []):
-        if isinstance(entry, dict):
+    for entry in (result.meta_trace if result.meta_trace else []):
+        if hasattr(entry, 'response'):
             trajectory.append({
                 "type": "planner_cycle",
-                "content": entry.get("content", ""),
+                "content": entry.response,
                 "timestamp": time.time()
             })
     
