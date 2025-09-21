@@ -366,23 +366,32 @@ When executing a task:
                 
                 # Parse plan JSON
                 try:
+                    # First try to strip code fences
                     stripped = self._strip_fences(meta_content)
-                    # Try to find JSON in the content
-                    if stripped.startswith('{') and stripped.endswith('}'):
-                        plan_data = json.loads(stripped)
-                    else:
-                        # Look for JSON object in the content
-                        start = stripped.find('{')
-                        end = stripped.rfind('}') + 1
-                        if start != -1 and end > start:
-                            json_str = stripped[start:end]
-                            plan_data = json.loads(json_str)
-                        else:
-                            raise ValueError("No valid JSON found in response")
                     
-                    _ = plan_data["plan"]  # Validate plan structure
-                    latest_plan_json = json.dumps(plan_data)
+                    # Clean up the content - remove any formatting artifacts
+                    cleaned_content = stripped.strip()
+                    
+                    # Try to find JSON object in the content
+                    start = cleaned_content.find('{')
+                    end = cleaned_content.rfind('}') + 1
+                    
+                    if start != -1 and end > start:
+                        json_str = cleaned_content[start:end]
+                        plan_data = json.loads(json_str)
+                        
+                        # Validate plan structure
+                        if "plan" not in plan_data:
+                            raise ValueError("Plan structure missing 'plan' key")
+                        
+                        latest_plan_json = json.dumps(plan_data)
+                        self.logger.info(f"Successfully parsed plan with {len(plan_data['plan'])} tasks")
+                    else:
+                        raise ValueError("No valid JSON object found in response")
+                    
                 except Exception as e:
+                    self.logger.error(f"JSON parsing error: {e}")
+                    self.logger.error(f"Content to parse: {meta_content[:200]}...")
                     final_answer = f"[planner error] {e}: {meta_content}"
                     break
                 
