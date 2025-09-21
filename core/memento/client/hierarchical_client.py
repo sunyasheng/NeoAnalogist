@@ -367,9 +367,21 @@ When executing a task:
                 # Parse plan JSON
                 try:
                     stripped = self._strip_fences(meta_content)
-                    plan_data = json.loads(stripped)
+                    # Try to find JSON in the content
+                    if stripped.startswith('{') and stripped.endswith('}'):
+                        plan_data = json.loads(stripped)
+                    else:
+                        # Look for JSON object in the content
+                        start = stripped.find('{')
+                        end = stripped.rfind('}') + 1
+                        if start != -1 and end > start:
+                            json_str = stripped[start:end]
+                            plan_data = json.loads(json_str)
+                        else:
+                            raise ValueError("No valid JSON found in response")
+                    
                     _ = plan_data["plan"]  # Validate plan structure
-                    latest_plan_json = stripped
+                    latest_plan_json = json.dumps(plan_data)
                 except Exception as e:
                     final_answer = f"[planner error] {e}: {meta_content}"
                     break
