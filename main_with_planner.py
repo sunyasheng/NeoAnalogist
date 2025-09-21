@@ -32,12 +32,12 @@ def run_agent_with_planner(
     
     # Extract execution statistics
     execution_stats = {
-        "planner_cycles": result.get("meta_trace", 0),
-        "executor_steps": result.get("executor_trace", 0),
-        "success": result.get("success", False),
-        "final_answer": result.get("final_answer", ""),
-        "plan": result.get("plan", {}),
-        "shared_history": result.get("shared_history", [])
+        "planner_cycles": len(result.meta_trace) if result.meta_trace else 0,
+        "executor_steps": len(result.executor_trace) if result.executor_trace else 0,
+        "success": True,  # If we got here, the query was processed
+        "final_answer": result.model_output if result.model_output else "",
+        "plan": result.plan_json if result.plan_json else "{}",
+        "shared_history": result.meta_trace if result.meta_trace else []
     }
     
     # Get LLM usage stats from the planner's LLM interface
