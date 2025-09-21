@@ -350,7 +350,7 @@ When executing a task:
                 )
                 
                 # Debug: Log the full response
-                self.logger.info(f"Full LLM response: {meta_reply}")
+                # LLM response received
                 
                 # Extract content from response
                 meta_content = meta_reply.get("content", "")
@@ -366,8 +366,7 @@ When executing a task:
                         else:
                             meta_content = choice.get("text", "")
                 
-                self.logger.info(f"Extracted content length: {len(meta_content)}")
-                self.logger.info(f"Extracted content preview: {meta_content[:100]}")
+                # Content extracted successfully
                 
                 # Record meta cycle
                 meta_trace.append(MetaCycle(
@@ -385,32 +384,24 @@ When executing a task:
                 
                 # Parse plan JSON
                 try:
-                    # Debug: Log the raw content
-                    self.logger.info(f"Raw LLM response length: {len(meta_content)}")
-                    self.logger.info(f"Raw LLM response preview: {repr(meta_content[:100])}")
-                    
                     # First try to strip code fences
                     stripped = self._strip_fences(meta_content)
-                    self.logger.info(f"After strip_fences: {repr(stripped[:100])}")
-                    
+
                     # Clean up the content - remove any formatting artifacts
                     cleaned_content = stripped.strip()
-                    
+
                     # Try to find JSON object in the content
                     start = cleaned_content.find('{')
                     end = cleaned_content.rfind('}') + 1
-                    
-                    self.logger.info(f"JSON start position: {start}, end position: {end}")
-                    
+
                     if start != -1 and end > start:
                         json_str = cleaned_content[start:end]
-                        self.logger.info(f"Extracted JSON: {json_str[:100]}...")
                         plan_data = json.loads(json_str)
-                        
+
                         # Validate plan structure
                         if "plan" not in plan_data:
                             raise ValueError("Plan structure missing 'plan' key")
-                        
+
                         latest_plan_json = json.dumps(plan_data)
                         self.logger.info(f"Successfully parsed plan with {len(plan_data['plan'])} tasks")
                     else:
@@ -418,8 +409,7 @@ When executing a task:
                     
                 except Exception as e:
                     self.logger.error(f"JSON parsing error: {e}")
-                    self.logger.error(f"Full content to parse: {repr(meta_content)}")
-                    final_answer = f"[planner error] {e}: {meta_content}"
+                    final_answer = f"[planner error] {e}: {meta_content[:200]}..."
                     break
                 
                 # Execute tasks in the plan

@@ -111,7 +111,7 @@ def main(config, working_dir):
     agent_controller.state = restored_state
     scientist_agent.event_history = list(event_stream.search_events(start_id=0, reverse=False, filter=None))
     print("Session state restored.")
-    print("[DEBUG] event_history after restore:", len(scientist_agent.event_history))
+    logger.info(f"Event history restored: {len(scientist_agent.event_history)} events")
     
     # Initialize Memento Planner with case bank
     logger.info("Initializing Memento Planner with case bank...")
