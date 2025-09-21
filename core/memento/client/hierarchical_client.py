@@ -366,8 +366,13 @@ When executing a task:
                 
                 # Parse plan JSON
                 try:
+                    # Debug: Log the raw content
+                    self.logger.info(f"Raw LLM response length: {len(meta_content)}")
+                    self.logger.info(f"Raw LLM response preview: {repr(meta_content[:100])}")
+                    
                     # First try to strip code fences
                     stripped = self._strip_fences(meta_content)
+                    self.logger.info(f"After strip_fences: {repr(stripped[:100])}")
                     
                     # Clean up the content - remove any formatting artifacts
                     cleaned_content = stripped.strip()
@@ -376,8 +381,11 @@ When executing a task:
                     start = cleaned_content.find('{')
                     end = cleaned_content.rfind('}') + 1
                     
+                    self.logger.info(f"JSON start position: {start}, end position: {end}")
+                    
                     if start != -1 and end > start:
                         json_str = cleaned_content[start:end]
+                        self.logger.info(f"Extracted JSON: {json_str[:100]}...")
                         plan_data = json.loads(json_str)
                         
                         # Validate plan structure
@@ -391,7 +399,7 @@ When executing a task:
                     
                 except Exception as e:
                     self.logger.error(f"JSON parsing error: {e}")
-                    self.logger.error(f"Content to parse: {meta_content[:200]}...")
+                    self.logger.error(f"Full content to parse: {repr(meta_content)}")
                     final_answer = f"[planner error] {e}: {meta_content}"
                     break
                 
