@@ -28,7 +28,7 @@ def run_agent_with_planner(
     
     # Process the query using Memento planner
     logger.info(f"Processing task with Memento planner: {task}")
-    result = planner.process_query(task)
+    result = planner.process_query_sync(task)
     
     # Extract execution statistics
     execution_stats = {
@@ -117,12 +117,18 @@ def main(config, working_dir):
     logger.info("Initializing Memento Planner with case bank...")
     
     # Prepare Memento-specific config
+    # Resolve memory path to absolute path
+    memory_path = config.get("memory_path", "core/memento/memory/cases.jsonl")
+    if not os.path.isabs(memory_path):
+        # Make it relative to the current working directory
+        memory_path = os.path.join(os.getcwd(), memory_path)
+    
     memento_config = {
         "max_cycles": config.get("max_cycles", 3),
         "max_steps_per_task": config.get("max_steps_per_task", 5),
         "timeout_per_task": config.get("timeout_per_task", 60),
         "memory_enabled": not config.get("disable_memory", False),
-        "memory_path": config.get("memory_path", "core/memento/memory/cases.jsonl")
+        "memory_path": memory_path
     }
     
     planner = MementoPlanner(
@@ -133,7 +139,14 @@ def main(config, working_dir):
     )
     
     logger.info("Memento Planner initialized successfully")
-    logger.info(f"Case bank loaded: {planner.memory_system.get('total_cases', 0)} cases")
+    
+    # Get memory system stats from hierarchical client
+    memory_stats = {}
+    if planner.hierarchical_client and planner.hierarchical_client.memory_system:
+        memory_stats = planner.hierarchical_client.memory_system.get_stats()
+        logger.info(f"Case bank loaded: {memory_stats.get('total_cases', 0)} cases")
+    else:
+        logger.info("Case bank not loaded (memory system disabled or not available)")
     
     # Process the task with Memento planner
     results = run_agent_with_planner(
@@ -178,7 +191,13 @@ def main(config, working_dir):
     logger.info(f"Task: {config['agent']['task']}")
     logger.info(f"Success: {execution_stats.get('success', False)}")
     logger.info(f"Final Answer: {execution_stats.get('final_answer', '')[:200]}...")
-    logger.info(f"Case Bank Cases Used: {planner.memory_system.get('total_cases', 0)}")
+    # Get final memory stats
+    final_memory_stats = {}
+    if planner.hierarchical_client and planner.hierarchical_client.memory_system:
+        final_memory_stats = planner.hierarchical_client.memory_system.get_stats()
+        logger.info(f"Case Bank Cases Used: {final_memory_stats.get('total_cases', 0)}")
+    else:
+        logger.info("Case Bank Cases Used: 0 (memory system not available)")
 
 
 if __name__ == "__main__":
