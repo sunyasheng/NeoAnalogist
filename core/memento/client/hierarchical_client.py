@@ -322,7 +322,7 @@ When executing a task:
 
             return {
                 "success": success,
-                "result": f"Task executed: {task_description}",
+                "result": "executor_response",  # neutral, avoid optimistic phrasing
                 "details": result,
                 "error": None if success else "Task execution failed",
                 "judge_report": judge_report
@@ -332,7 +332,7 @@ When executing a task:
             return {
                 "success": False,
                 "error": str(e),
-                "result": f"Error executing task: {e}",
+                "result": "executor_error",
                 "judge_report": {
                     "status": "error",
                     "subtask": task_description,
@@ -468,13 +468,12 @@ When executing a task:
                             # Fallback to simple string if serialization fails
                             self._add_to_history("assistant", f"Executor judge report: {exec_result['judge_report']}")
                     else:
-                        # Do NOT write optimistic "Task executed ..." lines anymore.
-                        # Write a minimal neutral executor status snapshot instead.
-                        minimal_status = {
-                            "success": exec_result.get("success"),
-                            "error": exec_result.get("error"),
+                        # Neutral, non-optimistic status (no success/complete wording)
+                        neutral_status = {
+                            "type": "executor_status",
+                            "note": "no_judge_report",
                         }
-                        self._add_to_history("assistant", "Executor status: " + json.dumps(minimal_status))
+                        self._add_to_history("assistant", "Executor status: " + json.dumps(neutral_status))
                 
                 # Update Planner messages for next cycle
                 planner_msgs = [{"role": "system", "content": self.META_SYSTEM_PROMPT}] + self.shared_history
