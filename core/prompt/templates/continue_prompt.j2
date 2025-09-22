@@ -1,4 +1,5 @@
 Before proceeding or calling finish, run an appropriate judge/verification step for the most recent subtask:
+- Choose the judge method/tool based on the original task description and the intended outcome (e.g., detection quality → mask/box coverage; inpainting → artifact checks and visual continuity; generation/replace → composition, lighting consistency, and correct placement; understanding → scene/objects/relations consistency vs detection).
 - If a judge/verification tool exists, invoke it. Otherwise, perform lightweight checks (e.g., file existence, expected dimensions/format, visible changes).
 - Produce a short structured summary of the subtask execution, including:
   - status: success/partial/failed
@@ -6,4 +7,10 @@ Before proceeding or calling finish, run an appropriate judge/verification step 
   - evidence: key file paths, logs, or preview indicators
   - artifacts: important outputs (paths)
   - next_actions: concrete follow-ups if not fully done
-- Then continue with the next best step based on the judge summary. Avoid declaring final completion until the judge summary supports it. 
+- Then continue with the next best step based on the judge summary. Avoid declaring final completion until the judge summary supports it.
+
+Examples:
+- Detection judge: Compare mask/box coverage against the target object; verify mask path exists; ensure IoU with expected region is reasonable.
+- Understanding judge: Verify the scene analysis mentions all detected objects (e.g., cat, mirror), their relations (cat left of mirror, reflection in mirror), and attach the understanding visualization path as evidence.
+- Inpainting judge: Check for boundary artifacts/halos; confirm edited region size matches mask; preview looks natural under lighting.
+- Replace/Generation judge: Verify new object placement, perspective, and lighting match; confirm final composited output path exists and dimensions are correct. 

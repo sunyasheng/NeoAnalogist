@@ -352,9 +352,33 @@ class Scientist(Agent):
             # Check for AgentFinishAction
             for action in actions:
                 if isinstance(action, AgentFinishAction):
-                    if action.task_completed == "true":
+                    if action.task_completed == "true" or action.task_completed == "false":
+                        # Inline judge before returning
+                        judge_prompt = self.prompt_manager.get_continue_prompt()
+                        judge_msg = MessageAction(
+                            content=judge_prompt,
+                            wait_for_response=True,
+                        )
+                        judge_msg._source = EventSource.USER
+                        self.event_stream.add_event(judge_msg, EventSource.USER)
+                        self.event_history.append(judge_msg)
+
+                        # Run one step to get judge output
+                        judge_step = self.step(observation=None, task=task)
+
+                        # Build a simple judge_report from last events
+                        judge_report = {
+                            "status": "success" if action.task_completed == "true" else "false",
+                            "summary": getattr(judge_msg, 'content', ''),
+                            "evidence": getattr(self, 'working_dir', ''),
+                        }
+
                         self.done = True
-                        return {"status": "success", "steps": step + 1}
+                        return {
+                            "status": "success" if action.task_completed == "true" else "false",
+                            "steps": step + 1,
+                            "judge_report": judge_report,
+                        }
                     elif action.task_completed == "partial":
                         # For partial completion, continue with the task
                         continue_prompt = MessageAction(
@@ -365,10 +389,6 @@ class Scientist(Agent):
                         self.event_stream.add_event(continue_prompt, EventSource.USER)
                         self.event_history.append(continue_prompt)
                         break
-                    elif action.task_completed == "false":
-                        # Task failed, return false status
-                        self.done = True
-                        return {"status": "false", "steps": step + 1}
                 if isinstance(action, MessageAction):
                     # import pdb; pdb.set_trace()
                     if action.wait_for_response:
