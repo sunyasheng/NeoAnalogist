@@ -1,4 +1,9 @@
-Now given the previous progress made by the agent, take the next step to continue and optimize the current task:
-- You have a lot of time available, so don't try and do everything in one go. Just reason about what is the best next step and execute it.
-- Use the available tools to write and execute the necessary code.
-- Remember, you should try to improve and optimize the current results. 
+Before proceeding or calling finish, run an appropriate judge/verification step for the most recent subtask:
+- If a judge/verification tool exists, invoke it. Otherwise, perform lightweight checks (e.g., file existence, expected dimensions/format, visible changes).
+- Produce a short structured summary of the subtask execution, including:
+  - status: success/partial/failed
+  - summary: what was attempted and observed
+  - evidence: key file paths, logs, or preview indicators
+  - artifacts: important outputs (paths)
+  - next_actions: concrete follow-ups if not fully done
+- Then continue with the next best step based on the judge summary. Avoid declaring final completion until the judge summary supports it. 

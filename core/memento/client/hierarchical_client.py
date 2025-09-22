@@ -284,7 +284,15 @@ When executing a task:
             return {
                 "success": False,
                 "error": "No Scientist agent available",
-                "result": "No Scientist agent available"
+                "result": "No Scientist agent available",
+                "judge_report": {
+                    "status": "error",
+                    "subtask": task_description,
+                    "summary": "Scientist agent not available",
+                    "evidence": "",
+                    "artifacts": [],
+                    "next_actions": ["Initialize scientist agent"]
+                }
             }
         
         try:
@@ -295,20 +303,44 @@ When executing a task:
                 controller=None
             )
             
-            success = result.get("status") == "success"
-            
+            status = result.get("status")
+            success = status == "success"
+
+            # Prefer passing through Scientist's judge payload entirely, without filtering
+            judge_payload = None
+            for key in ("judge", "judge_report"):
+                if key in result and result[key]:
+                    judge_payload = result[key]
+                    break
+
+            # Build a simple, inclusive judge report
+            judge_report: Dict[str, Any] = {
+                "status": status if status else ("success" if success else "error"),
+                "subtask": task_description,
+                "content": judge_payload if judge_payload is not None else result,
+            }
+
             return {
                 "success": success,
                 "result": f"Task executed: {task_description}",
                 "details": result,
-                "error": None if success else "Task execution failed"
+                "error": None if success else "Task execution failed",
+                "judge_report": judge_report
             }
             
         except Exception as e:
             return {
                 "success": False,
                 "error": str(e),
-                "result": f"Error executing task: {e}"
+                "result": f"Error executing task: {e}",
+                "judge_report": {
+                    "status": "error",
+                    "subtask": task_description,
+                    "summary": str(e),
+                    "evidence": "",
+                    "artifacts": [],
+                    "next_actions": []
+                }
             }
     
     async def process_query(self, query: str, task_id: str) -> QueryRecord:
@@ -428,8 +460,16 @@ When executing a task:
                         output=exec_result["result"]
                     ))
                     
-                    # Add to shared history
-                    self._add_to_history("assistant", f"Task {task['id']} result: {exec_result['result']}")
+                    # Add structured judge report into shared history for the next cycle
+                    if "judge_report" in exec_result:
+                        try:
+                            self._add_to_history("assistant", "Executor judge report: " + json.dumps(exec_result["judge_report"]))
+                        except Exception:
+                            # Fallback to simple string if serialization fails
+                            self._add_to_history("assistant", f"Executor judge report: {exec_result['judge_report']}")
+                    else:
+                        # Legacy: add plain text result
+                        self._add_to_history("assistant", f"Task {task['id']} result: {exec_result['result']}")
                 
                 # Update Planner messages for next cycle
                 planner_msgs = [{"role": "system", "content": self.META_SYSTEM_PROMPT}] + self.shared_history
