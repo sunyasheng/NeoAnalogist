@@ -632,7 +632,7 @@ def get_tools(
         GroundingSAMTool,
         # InpaintRemoveTool,
         SDXLInpaintTool,
-        LAMARemoveTool,
+        # LAMARemoveTool, # terrible performance
         ImageEditJudgeTool,
         ImageUnderstandingTool,
         # IPythonTool,

@@ -468,8 +468,13 @@ When executing a task:
                             # Fallback to simple string if serialization fails
                             self._add_to_history("assistant", f"Executor judge report: {exec_result['judge_report']}")
                     else:
-                        # Legacy: add plain text result
-                        self._add_to_history("assistant", f"Task {task['id']} result: {exec_result['result']}")
+                        # Do NOT write optimistic "Task executed ..." lines anymore.
+                        # Write a minimal neutral executor status snapshot instead.
+                        minimal_status = {
+                            "success": exec_result.get("success"),
+                            "error": exec_result.get("error"),
+                        }
+                        self._add_to_history("assistant", "Executor status: " + json.dumps(minimal_status))
                 
                 # Update Planner messages for next cycle
                 planner_msgs = [{"role": "system", "content": self.META_SYSTEM_PROMPT}] + self.shared_history
