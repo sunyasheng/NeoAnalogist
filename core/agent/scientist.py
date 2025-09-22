@@ -321,6 +321,9 @@ class Scientist(Agent):
         self.task = task
         self.controller = controller
         step = 0
+        # Pending finish flow: capture finish intent and wait for judge next round
+        self._pending_finish = None  # "true" | "false" | None
+        self._pending_finish_seen_judge = False
         while not self.done and step < max_steps:
             try:
                 actions = self.policy(None, task if step == 0 else None)
@@ -353,7 +356,8 @@ class Scientist(Agent):
             for action in actions:
                 if isinstance(action, AgentFinishAction):
                     if action.task_completed == "true" or action.task_completed == "false":
-                        # Inline judge before returning
+                        # Defer finish: record intent and inject a judge prompt, do not return yet
+                        self._pending_finish = action.task_completed
                         judge_prompt = self.prompt_manager.get_continue_prompt()
                         judge_msg = MessageAction(
                             content=judge_prompt,
@@ -362,23 +366,8 @@ class Scientist(Agent):
                         judge_msg._source = EventSource.USER
                         self.event_stream.add_event(judge_msg, EventSource.USER)
                         self.event_history.append(judge_msg)
-
-                        # Run one step to get judge output
-                        judge_step = self.step(observation=None, task=task)
-
-                        # Build a simple judge_report from last events
-                        judge_report = {
-                            "status": "success" if action.task_completed == "true" else "false",
-                            "summary": getattr(judge_msg, 'content', ''),
-                            "evidence": getattr(self, 'working_dir', ''),
-                        }
-
-                        self.done = True
-                        return {
-                            "status": "success" if action.task_completed == "true" else "false",
-                            "steps": step + 1,
-                            "judge_report": judge_report,
-                        }
+                        # Break inner loop; proceed to execute stage and next iteration where judge can run
+                        break
                     elif action.task_completed == "partial":
                         # For partial completion, continue with the task
                         continue_prompt = MessageAction(
@@ -408,8 +397,19 @@ class Scientist(Agent):
             for obs in observations:
                 self.event_stream.add_event(obs, getattr(obs, '_source', EventSource.ENVIRONMENT))
                 self.event_history.append(obs)
+                # Detect judge execution by observation name tag
+                obs_name = getattr(obs, 'observation', '') or obs.__class__.__name__
+                if isinstance(obs_name, str) and 'judge' in obs_name.lower():
+                    self._pending_finish_seen_judge = True
             # Auto condensation check
             self.maybe_condense_event_history()
+
+            # If we had a pending finish, exit with that status regardless of judge observation
+            if self._pending_finish is not None:
+                status = "success" if self._pending_finish == "true" else "false"
+                self.done = True
+                return {"status": status, "steps": step + 1}
+
             step += 1
 
         return {"status": "success" if self.done else "error", "steps": step}
